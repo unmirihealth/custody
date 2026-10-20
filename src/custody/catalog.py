@@ -5,26 +5,170 @@ Loads catalog.yaml: a list of datasets, each with an id, a path, a format
 < deidentified < limited_data_set < identified. Optional column-level tags
 (for example mrn: direct_identifier) live alongside a dataset's entry.
 
-An unlabeled dataset, or a dataset referenced in a tool call but absent
-from the catalog, is treated as identified: the most restrictive class,
-not the least. This is the catalog's half of "deny by default"; the other
-half lives in custody.policy.
-
-Planned surface:
-    class DataClass(StrEnum): ...        # ordered, comparable
-    class ColumnTag(StrEnum): ...
-    class CatalogEntry(BaseModel): ...
-    class Catalog:
-        @classmethod
-        def load(cls, path: Path) -> "Catalog": ...
-        def classify(self, dataset_id: str) -> DataClass: ...
-        def list(self) -> list[CatalogEntry]: ...
-
-Not yet implemented. This module is a placeholder showing the planned
-shape; see the build plan in the project's tracking issue before writing
-against it.
+A dataset id that is not in the catalog classifies as `identified`, the
+most restrictive class, not the least. This is the catalog's half of
+"deny by default"; the other half lives in custody.policy.
 """
 
 from __future__ import annotations
 
-raise NotImplementedError("custody.catalog is not yet implemented (v0.1 skeleton)")
+from enum import StrEnum
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class DataClass(StrEnum):
+    """Sensitivity of a dataset or a result derived from one.
+
+    Ordered least to most sensitive. Comparison operators compare rank,
+    not string value, so `DataClass.synthetic < DataClass.identified` is
+    True and policy rules can use `min_data_class` / `max_data_class`.
+
+    All four comparisons are defined explicitly rather than relying on
+    `functools.total_ordering`: this class also inherits from `str`, and
+    `str` already supplies `__le__`/`__gt__`/`__ge__` that compare by
+    string VALUE ("identified" < "limited_data_set" alphabetically), which
+    silently wins over a partially-generated rank-based ordering. Defining
+    all four here removes that trap rather than relying on method
+    resolution order to sort it out.
+    """
+
+    synthetic = "synthetic"
+    deidentified = "deidentified"
+    limited_data_set = "limited_data_set"
+    identified = "identified"
+
+    @property
+    def rank(self) -> int:
+        return _RANK[self]
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, DataClass):
+            return NotImplemented
+        return self.rank < other.rank
+
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, DataClass):
+            return NotImplemented
+        return self.rank <= other.rank
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, DataClass):
+            return NotImplemented
+        return self.rank > other.rank
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, DataClass):
+            return NotImplemented
+        return self.rank >= other.rank
+
+
+_RANK: dict[DataClass, int] = {
+    DataClass.synthetic: 0,
+    DataClass.deidentified: 1,
+    DataClass.limited_data_set: 2,
+    DataClass.identified: 3,
+}
+
+#: The most restrictive class. Used as the fallback for anything the
+#: catalog has no entry for.
+UNKNOWN_DEFAULT = DataClass.identified
+
+
+class ColumnTag(StrEnum):
+    """A column-level sensitivity tag, independent of the dataset's own
+    data_class (a de-identified dataset can still carry a quasi-identifier
+    column worth flagging to a reviewer)."""
+
+    direct_identifier = "direct_identifier"
+    quasi_identifier = "quasi_identifier"
+
+
+class DatasetFormat(StrEnum):
+    csv = "csv"
+    parquet = "parquet"
+
+
+class CatalogEntry(BaseModel):
+    """One dataset's catalog record."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    path: Path
+    format: DatasetFormat
+    data_class: DataClass
+    columns: dict[str, ColumnTag] = Field(default_factory=dict)
+
+    @field_validator("id")
+    @classmethod
+    def _id_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("dataset id must not be empty")
+        return v
+
+
+class _CatalogFile(BaseModel):
+    """Shape of catalog.yaml on disk: a top-level `datasets` list."""
+
+    datasets: list[CatalogEntry] = Field(default_factory=list)
+
+
+class DuplicateDatasetIdError(ValueError):
+    """Raised when catalog.yaml declares the same dataset id twice."""
+
+
+class Catalog:
+    """An immutable, loaded catalog. Construct with `Catalog.load(path)`,
+    not directly, so every entry has gone through validation."""
+
+    def __init__(self, entries: dict[str, CatalogEntry]) -> None:
+        self._entries = entries
+
+    @classmethod
+    def load(cls, path: Path) -> Catalog:
+        """Parse and validate catalog.yaml at `path`.
+
+        Raises DuplicateDatasetIdError if two entries share an id, and
+        whatever pydantic.ValidationError the underlying models raise for
+        a malformed entry (bad format, bad data_class, missing field).
+        """
+        raw: Any = yaml.safe_load(path.read_text()) or {}
+        parsed = _CatalogFile.model_validate(raw)
+
+        entries: dict[str, CatalogEntry] = {}
+        for entry in parsed.datasets:
+            if entry.id in entries:
+                raise DuplicateDatasetIdError(
+                    f"dataset id {entry.id!r} is declared more than once in {path}"
+                )
+            entries[entry.id] = entry
+        return cls(entries)
+
+    @classmethod
+    def empty(cls) -> Catalog:
+        """A catalog with no entries. Every dataset id classifies as
+        `identified`. Useful for tests and for a policy.explain run
+        against a hypothetical request with no catalog loaded."""
+        return cls({})
+
+    def get(self, dataset_id: str) -> CatalogEntry | None:
+        return self._entries.get(dataset_id)
+
+    def classify(self, dataset_id: str) -> DataClass:
+        """The data class for `dataset_id`, or UNKNOWN_DEFAULT
+        (`identified`) if the catalog has no entry for it."""
+        entry = self._entries.get(dataset_id)
+        return entry.data_class if entry is not None else UNKNOWN_DEFAULT
+
+    def list(self) -> list[CatalogEntry]:
+        return list(self._entries.values())
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __contains__(self, dataset_id: str) -> bool:
+        return dataset_id in self._entries

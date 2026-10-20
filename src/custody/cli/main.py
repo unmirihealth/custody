@@ -30,7 +30,8 @@ def serve() -> None:
 
 @app.command()
 def demo() -> None:
-    """Generate the synthetic dataset and run the scripted end-to-end scenario. Not yet implemented."""
+    """Generate the synthetic dataset and run the scripted end-to-end
+    scenario. Not yet implemented."""
     raise NotImplementedError
 
 

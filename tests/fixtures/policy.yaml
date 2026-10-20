@@ -1,0 +1,30 @@
+rules:
+  - id: catalog-list-ok
+    when: { tool: catalog.list }
+    decision: allow
+
+  - id: no-egress
+    when: { egress: true }
+    decision: deny
+
+  - id: deid-query-ok
+    when: { tool: sql.query, max_data_class: deidentified }
+    decision: allow
+
+  - id: identified-needs-approval
+    when: { tool: sql.query, min_data_class: identified }
+    decision: require_approval
+    approvals: { count: 1, roles: [data_steward] }
+
+  - id: export-two-person
+    when: { tool: files.export, min_data_class: limited_data_set }
+    decision: require_approval
+    approvals: { count: 2, roles: [data_steward, privacy_officer] }
+
+default: deny
+
+model_allowlist:
+  synthetic: ["*"]
+  deidentified: ["*"]
+  limited_data_set: ["ollama/*", "bedrock-baa/*"]
+  identified: ["ollama/*", "bedrock-baa/*"]

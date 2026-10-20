@@ -1,0 +1,17 @@
+datasets:
+  - id: tumor_registry_deid
+    path: data/synthetic/tumor_registry_deid.csv
+    format: csv
+    data_class: deidentified
+  - id: tumor_registry_identified
+    path: data/synthetic/tumor_registry_identified.csv
+    format: csv
+    data_class: identified
+    columns:
+      mrn: direct_identifier
+      patient_name: direct_identifier
+      zip_code: quasi_identifier
+  - id: cohort_summary_synthetic
+    path: data/synthetic/cohort_summary.parquet
+    format: parquet
+    data_class: synthetic

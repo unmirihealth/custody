@@ -11,7 +11,9 @@ detect a model identity the agent misreports.
 
 Planned surface:
     class ModelRouter:
-        def check(self, data_class: DataClass, model_id: str, policy: PolicyEngine) -> RoutingDecision: ...
+        def check(
+            self, data_class: DataClass, model_id: str, policy: PolicyEngine,
+        ) -> RoutingDecision: ...
 
 Not yet implemented.
 """

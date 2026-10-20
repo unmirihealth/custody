@@ -9,7 +9,9 @@ heuristic, not a guarantee, see docs/threat-model.md T5.
 
 Planned surface:
     class OutputGuard:
-        def redact(self, result: QueryResult, data_class: DataClass, policy: GuardPolicy) -> QueryResult: ...
+        def redact(
+            self, result: QueryResult, data_class: DataClass, policy: GuardPolicy,
+        ) -> QueryResult: ...
 
 Not yet implemented.
 """
