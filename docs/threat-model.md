@@ -1,0 +1,42 @@
+# Threat model
+
+Custody is a gateway, not a sandbox vendor and not a model provider. This
+document lists what it defends against, what it mitigates partially, and
+what is explicitly out of scope. If a reviewer is deciding whether Custody
+is sufficient for a specific workflow, this page is where that decision
+starts.
+
+Scope: a single Custody deployment mediating one or more MCP agent
+sessions against local datasets and downstream MCP tools, as described in
+the v0.1 architecture in the README.
+
+## STRIDE table
+
+| # | Threat | Category | v0.1 mitigation | Residual risk |
+|---|---|---|---|---|
+| T1 | Prompt injection via retrieved data (a dataset, a tool result, or a downstream MCP server's response contains instructions the agent follows) | Tampering / Elevation of privilege | Every tool call still passes through the policy engine regardless of what the agent "decided" to do; an injected instruction to export identified data still hits the export approval gate. The agent cannot bypass policy by being persuaded, only by a human approving a bad request. | Custody does not inspect tool call arguments for injected intent, only the declared data class and action. A sufficiently narrow injection (for example, one that stays inside an already-allowed query) is not caught. Approvers are the real backstop for this; the approval UI shows the full request so they can refuse an odd one. |
+| T2 | Sandbox escape from the command/script executor | Elevation of privilege | Containers run non-root, `--network none` by default, read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, and CPU/memory/pids/time limits. Only the datasets a policy decision allowed are bind-mounted, read-only. | Container isolation is not a hard security boundary against a determined attacker with kernel exploits; v0.1 uses standard Docker, not gVisor or Firecracker (see ROADMAP.md). A sandbox escape on a host that also runs other workloads is a real risk Custody does not fully close. |
+| T3 | Audit log tampering (an entry is edited or deleted after the fact) | Tampering / Repudiation | Each entry carries the SHA-256 hash of the entry before it. Periodic checkpoints are signed with an Ed25519 key. `custody audit verify` recomputes the chain and reports the first broken link. | This is tamper-evident, not tamper-proof: an attacker with write access to the log store and enough time can rebuild a consistent-looking chain from a point they control, though they cannot produce a chain that still verifies against an already-published signed checkpoint. v0.1 ships a local-file sink; verifiable immutability depends on shipping checkpoints to write-once storage (for example S3 Object Lock), which Custody documents but does not require. |
+| T4 | Approval spoofing (an action is recorded as approved by someone who did not approve it) | Spoofing / Repudiation | Approver identity and a free-text reason are required on every decision and are written into the audit log. The requesting principal can never also be the approver. Two-person rules reject a second approval from the same approver. | v0.1 approver identity comes from a local `principals.yaml`, not SSO (see ROADMAP.md), so the strength of the identity check is only as strong as how that file and its access are managed. There is no cryptographic signature on an individual approval decision in v0.1, only the audit log's own hash chain. |
+| T5 | PHI leakage through tool outputs (a query result returned to the agent contains more than the policy intended) | Information disclosure | The output guard applies small-cell suppression (default minimum 11) to aggregate results derived from `limited_data_set` or `identified` data, and the demo's test suite greps post-run output for synthetic identifiers to catch unredacted passthrough. | The output guard does not parse free text for embedded identifiers by default; Presidio integration (off by default in v0.1) only adds heuristic detection, not a guarantee. A query that is itself designed to return row-level identified data where policy allows it will return exactly that, by design, that is an approval-gate question, not an output-guard one. |
+| T6 | PHI leakage through the audit log itself | Information disclosure | The audit log is specified to store dataset IDs, row counts, column names, content hashes, and redacted summaries, never field values from identified datasets. This is enforced by what the policy/audit code is written to pass into log entries, not by a separate filter. | A bug in a future tool implementation that logs a raw argument containing PHI would not be automatically caught; there is no PHI-pattern scrubber on the write path in v0.1. This is the single biggest implementation discipline requirement in the codebase and is called out again in CONTRIBUTING.md. |
+| T7 | Model egress of identified data (identified data reaches a model outside the approved list, intentionally or by misconfiguration) | Information disclosure | Model routing checks the session's declared model identity against a per-data-class allowlist before the request proceeds, and logs the model identity on every decision. | Custody only controls what data it releases to a session; it cannot see what a model provider does with data once Custody has released it, and it cannot detect a model identity that the agent misreports. This is a boundary-of-control limitation, documented plainly in the README's "What Custody is not" section. |
+| T8 | Approval or policy denial of service (an attacker floods the approval queue, or forces a deny-by-default storm) | Denial of service | Every unmatched or malformed request denies by default rather than hanging the agent indefinitely; approval timeout is bounded (default 15 minutes) so a stuck queue does not block forever. | v0.1 has no rate limiting on request volume into the policy engine itself. A misbehaving agent making a very large number of requests could still produce a large, noisy audit log and a flooded approval queue, even though every individual decision is correct. |
+| T9 | Egress proxy bypass (sandboxed code reaches the network despite `--network none` being the default) | Elevation of privilege | Network is off by default for every sandboxed execution. When a policy explicitly allows egress, it is scoped to an allowlist enforced through a proxy container, not opened broadly. | A robust, fully isolated egress allowlist is a harder problem than the rest of v0.1's scope; if the allowlisted-egress proxy cannot be implemented to the same rigor as the rest of the sandbox, that capability is deferred to ROADMAP.md rather than shipped half-built. Check the current README for whether egress-allowed mode is implemented in this release or still on the roadmap. |
+
+## Explicitly out of scope for v0.1
+
+- **Host OS and Docker daemon compromise.** Custody assumes the host running the Docker daemon is itself trusted and patched. It is not a hardened container runtime.
+- **Multi-tenant isolation between separate Custody deployments.** Each deployment is assumed to serve one organization's agents against its own datasets.
+- **Model provider behavior.** Custody does not audit or control what a model does with data after a request is released to it, only whether that release was permitted.
+- **Network-level attacks against the approvals web UI or MCP transport** beyond binding the approvals UI to `127.0.0.1` with a startup token. TLS termination, network segmentation, and SSO are deployment concerns, not something v0.1 ships.
+- **Formal verification of the audit log's cryptography.** The hash chain and Ed25519 signatures use standard, widely reviewed primitives from the `cryptography` package; Custody does not add a formal proof beyond property-based tests of chain integrity.
+
+## How to read the mitigation column
+
+A mitigation is either enforced in code (and has a test asserting it) or it
+is a documented operational practice (and is named as such). This document
+does not claim a mitigation exists if it only exists as intent. Where a row
+says a capability is "documented but not required" or "check the current
+README," treat that as the authoritative caveat, not the summary sentence
+above it.

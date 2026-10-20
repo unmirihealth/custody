@@ -1,0 +1,13 @@
+custody
+Copyright 2026 UNMIRI LLC
+
+This product includes software developed by UNMIRI LLC
+(https://unmiri.com).
+
+Custody provides controls (data-aware policy, approval gates, a
+tamper-evident audit log, and isolated execution) that can support
+HIPAA-aligned programs. It is not a HIPAA certification, does not
+ensure compliance on its own, and does not replace a business
+associate agreement, a risk assessment, or an institution's own
+review process. See README.md ("What Custody is not") and
+docs/threat-model.md before relying on it for a specific workflow.

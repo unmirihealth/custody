@@ -1,0 +1,72 @@
+[project]
+name = "custody-mcp"
+version = "0.1.0"
+description = "A governed, auditable agent gateway for oncology data workflows"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "Umair Khan", email = "security@unmiri.com" }]
+keywords = ["mcp", "ai-agents", "governance", "audit-log", "healthcare", "oncology"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+]
+dependencies = [
+    "mcp>=2.3,<3",
+    "pydantic>=2.9",
+    "pyyaml>=6.0",
+    "cryptography>=43.0",
+    "docker>=7.1",
+    "typer>=0.15",
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "opentelemetry-api>=1.28",
+]
+
+[project.urls]
+Homepage = "https://github.com/unmirihealth/custody"
+Issues = "https://github.com/unmirihealth/custody/issues"
+
+[project.scripts]
+custody = "custody.cli.main:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.115",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/custody"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S"]
+# S101: assert is fine in tests. Excluded per-file below instead of globally.
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["custody"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src/custody --cov-report=term-missing"
