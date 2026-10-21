@@ -22,6 +22,7 @@ from datetime import timedelta
 from pydantic import BaseModel, ConfigDict
 
 from custody.approvals import DEFAULT_POLL_INTERVAL, ApprovalBroker, ApprovalStatus, ApprovalSummary
+from custody.approvals.notifier import ApprovalNotifier, NullNotifier
 from custody.audit import AuditLog, EventType
 from custody.catalog import Catalog, DataClass
 from custody.policy import Decision, PolicyEngine, PolicyResult, ToolRequest
@@ -52,6 +53,7 @@ class Gateway:
         approval_timeout: timedelta | None = None,
         approval_poll_interval: timedelta = DEFAULT_POLL_INTERVAL,
         approval_sleep: Callable[[float], None] = time.sleep,
+        notifier: ApprovalNotifier | None = None,
     ) -> None:
         self.policy = policy
         self.catalog = catalog
@@ -63,6 +65,13 @@ class Gateway:
         self._approval_timeout = approval_timeout
         self._approval_poll_interval = approval_poll_interval
         self._approval_sleep = approval_sleep
+        # No review_url is passed to notify(): the gateway has no way to
+        # know the approvals UI's URL or its per-run startup token (see
+        # custody/approvals_ui.py), so it would be fabricating a link
+        # rather than giving a real one. The approval id and `custody
+        # approvals list` / `custody ui` pointer in the notification
+        # text is what's actually true.
+        self.notifier: ApprovalNotifier = notifier or NullNotifier()
 
     def close(self) -> None:
         """Release the approval broker's SQLite connection. Safe to skip
@@ -175,6 +184,7 @@ class Gateway:
             required_roles=result.approvals.roles,
             timeout=self._approval_timeout,
         )
+        self.notifier.notify(approval)
         self.audit.append(
             EventType.approval,
             {"tool": tool, "approval_id": approval.id, "status": "requested"},

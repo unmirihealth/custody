@@ -22,6 +22,7 @@ from custody.approvals.models import (
     ApprovalSummary,
     PendingApproval,
 )
+from custody.approvals.notifier import ApprovalNotifier, NullNotifier, WebhookNotifier
 from custody.approvals.principals import Principal, PrincipalDirectory
 from custody.approvals.store import ApprovalStore, DuplicateApproverError
 
@@ -33,13 +34,16 @@ __all__ = [
     "ApprovalDecision",
     "ApprovalExpiredError",
     "ApprovalNotFoundError",
+    "ApprovalNotifier",
     "ApprovalStatus",
     "ApprovalStore",
     "ApprovalSummary",
     "DuplicateApproverError",
+    "NullNotifier",
     "PendingApproval",
     "Principal",
     "PrincipalDirectory",
     "SelfApprovalError",
     "UnauthorizedApproverError",
+    "WebhookNotifier",
 ]

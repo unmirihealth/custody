@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -95,9 +96,12 @@ def serve(
     session_id: str = typer.Option("default", help="Audit log session id."),
     principal: str = typer.Option(..., help="Identity of the agent/session using this gateway."),
 ) -> None:
-    """Run the MCP gateway (stdio)."""
+    """Run the MCP gateway (stdio). Reads CUSTODY_WEBHOOK_URL from the
+    environment, if set, to notify a Slack-compatible webhook on every
+    new pending approval."""
     paths = ServerPaths.under(dir)
-    mcp = build_server(paths, session_id=session_id, principal=principal)
+    webhook_url = os.environ.get("CUSTODY_WEBHOOK_URL")
+    mcp = build_server(paths, session_id=session_id, principal=principal, webhook_url=webhook_url)
     mcp.run()
 
 

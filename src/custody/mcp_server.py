@@ -18,7 +18,7 @@ from pathlib import Path
 
 from mcp.server import MCPServer
 
-from custody.approvals import ApprovalBroker
+from custody.approvals import ApprovalBroker, WebhookNotifier
 from custody.audit import AuditLog, LocalFileSink
 from custody.audit import keys as audit_keys
 from custody.catalog import Catalog
@@ -87,17 +87,25 @@ def build_gateway(
     *,
     session_id: str,
     principal: str,
+    webhook_url: str | None = None,
 ) -> Gateway:
+    """`webhook_url`, when given, wires a WebhookNotifier so a new
+    pending approval posts a Slack-compatible notification. Also read
+    from the CUSTODY_WEBHOOK_URL environment variable by the CLI (see
+    custody/cli/main.py); passing it explicitly here always wins.
+    """
     catalog = Catalog.load(paths.catalog)
     policy = PolicyEngine.load(paths.policy)
     audit = _open_audit_log(paths, session_id, principal)
     approvals = ApprovalBroker.open(paths.approvals_db, paths.principals)
+    notifier = WebhookNotifier(webhook_url) if webhook_url else None
     return Gateway(
         policy=policy,
         catalog=catalog,
         audit=audit,
         approvals=approvals,
         session_id=session_id,
+        notifier=notifier,
         principal=principal,
     )
 
@@ -108,13 +116,16 @@ def build_server(
     session_id: str,
     principal: str,
     sandbox_config: SandboxConfig | None = None,
+    webhook_url: str | None = None,
 ) -> MCPServer:
     """Construct a ready-to-run MCPServer exposing Custody's six tools.
     Call `.run()` (stdio) or `.run_streamable_http_async(...)` on the
     result; see docs/integrations/claude-code.md for the config snippet
     that points a Claude Code session at this.
     """
-    gateway = build_gateway(paths, session_id=session_id, principal=principal)
+    gateway = build_gateway(
+        paths, session_id=session_id, principal=principal, webhook_url=webhook_url
+    )
     sandbox = SandboxExecutor(sandbox_config or SandboxConfig())
     ctx = ToolContext(
         gateway=gateway,

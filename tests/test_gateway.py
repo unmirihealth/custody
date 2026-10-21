@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from custody.approvals import ApprovalBroker, ApprovalStore, PrincipalDirectory
+from custody.approvals import ApprovalBroker, ApprovalNotifier, ApprovalStore, PrincipalDirectory
 from custody.audit import AuditLog, EventType, LocalFileSink
 from custody.catalog import Catalog, DataClass
 from custody.gateway import Gateway
@@ -15,7 +15,11 @@ from custody.policy import PolicyEngine
 
 
 def _make_gateway(
-    tmp_path: Path, fixtures_dir: Path, *, approval_sleep: Callable[[float], None]
+    tmp_path: Path,
+    fixtures_dir: Path,
+    *,
+    approval_sleep: Callable[[float], None],
+    notifier: ApprovalNotifier | None = None,
 ) -> Gateway:
     catalog = Catalog.load(fixtures_dir / "catalog.yaml")
     policy = PolicyEngine.load(fixtures_dir / "policy.yaml")
@@ -38,6 +42,7 @@ def _make_gateway(
         principal="agent_session",
         approval_poll_interval=timedelta(milliseconds=1),
         approval_sleep=approval_sleep,
+        notifier=notifier,
     )
 
 
@@ -201,4 +206,49 @@ class TestApprovalFlow:
         result = gw.authorize("files.export", datasets=["tumor_registry_identified"])
         assert result.allowed is True
         assert calls["n"] == 2
+        gw.close()
+
+
+class TestNotifier:
+    def test_notifier_called_on_require_approval(
+        self, tmp_path: Path, fixtures_dir: Path
+    ) -> None:
+        notified: list[str] = []
+
+        class RecordingNotifier:
+            def notify(self, approval, *, review_url: str | None = None) -> None:  # type: ignore[no-untyped-def]
+                notified.append(approval.id)
+
+        def approve_on_first_poll(_seconds: float) -> None:
+            gw_holder["gw"].approvals.decide(
+                gw_holder["gw"].approvals.list_pending()[0].id, "jane_steward", True, "fine"
+            )
+
+        gw_holder: dict[str, Gateway] = {}
+        gw = _make_gateway(
+            tmp_path,
+            fixtures_dir,
+            approval_sleep=approve_on_first_poll,
+            notifier=RecordingNotifier(),
+        )
+        gw_holder["gw"] = gw
+
+        gw.authorize("sql.query", datasets=["tumor_registry_identified"])
+        assert len(notified) == 1
+        gw.close()
+
+    def test_notifier_not_called_on_a_plain_allow(
+        self, tmp_path: Path, fixtures_dir: Path
+    ) -> None:
+        notified: list[str] = []
+
+        class RecordingNotifier:
+            def notify(self, approval, *, review_url: str | None = None) -> None:  # type: ignore[no-untyped-def]
+                notified.append(approval.id)
+
+        gw = _make_gateway(
+            tmp_path, fixtures_dir, approval_sleep=lambda _s: None, notifier=RecordingNotifier()
+        )
+        gw.authorize("catalog.list")
+        assert notified == []
         gw.close()
