@@ -83,6 +83,11 @@ See docs/integrations/claude-code.md for both, with exact config.
 - **Not a HIPAA certification.** Installing Custody does not make anyone
   compliant. The accurate phrase is that Custody provides controls that
   can support HIPAA-aligned programs.
+- **Not an audit or a SOC 2 report.** `custody evidence export`
+  produces a mechanical summary of the audit log and policy, mapped to
+  SOC 2 Common Criteria language, for a reviewer's convenience. It is
+  not an attestation and does not substitute for an independent
+  auditor. See docs/evidence-pack.md.
 - **Not a replacement for a business associate agreement, a risk
   assessment, or your institution's review process.**
 - **Tamper-evident, not tamper-proof.** The audit log detects changes; it
@@ -108,6 +113,7 @@ See docs/integrations/claude-code.md for both, with exact config.
 | Approval broker | `custody/approvals/` | this README, docs/threat-model.md |
 | Approval notifier (CLI, UI, webhook) | `custody/approvals/notifier.py` | docs/policy-reference.md, `custody serve --help` |
 | Audit log | `custody/audit/` | docs/audit-log.md |
+| Evidence-pack export | `custody/evidence/` | docs/evidence-pack.md |
 | Sandbox executor | `custody/sandbox/` | docs/threat-model.md |
 | Output guard | `custody/guard.py` | this README |
 | Model routing | `custody/routing.py` | docs/threat-model.md |

@@ -16,6 +16,7 @@ from custody.audit import LocalFileSink
 from custody.audit import keys as audit_keys
 from custody.audit.log import verify_sink
 from custody.catalog import Catalog
+from custody.evidence import write_evidence_pack
 from custody.mcp_server import ServerPaths, build_server
 from custody.policy import PolicyBundleError, PolicyEngine, SignedPolicyBundle, ToolRequest
 from custody.policy import bundle_path_for as policy_bundle_path_for
@@ -32,9 +33,11 @@ app = typer.Typer(
 policy_app = typer.Typer(help="Policy file operations.", no_args_is_help=True)
 approvals_app = typer.Typer(help="Approval broker operations.", no_args_is_help=True)
 audit_app = typer.Typer(help="Audit log operations.", no_args_is_help=True)
+evidence_app = typer.Typer(help="Evidence-pack export.", no_args_is_help=True)
 app.add_typer(policy_app, name="policy")
 app.add_typer(approvals_app, name="approvals")
 app.add_typer(audit_app, name="audit")
+app.add_typer(evidence_app, name="evidence")
 
 DirOpt = typer.Option(Path("."), "--dir", help="Deployment root (holds .custody/ state).")
 
@@ -306,6 +309,39 @@ def audit_tail(n: int = 20, dir: Path = DirOpt) -> None:
             f"[{e.seq}] {e.timestamp.isoformat()} {e.event_type.value:<10} "
             f"{e.principal}: {json.dumps(e.payload, sort_keys=True)}"
         )
+
+
+@evidence_app.command("export")
+def evidence_export(
+    dest: Path,
+    dir: Path = DirOpt,
+    since: str | None = typer.Option(None, help="ISO 8601 timestamp."),
+    until: str | None = typer.Option(None, help="ISO 8601 timestamp."),
+) -> None:
+    """Export an evidence pack (manifest, README, audit export, policy +
+    bundle if present) to DEST, a new or empty directory. See
+    docs/evidence-pack.md -- this is a mechanical export, not a
+    certification."""
+    paths = ServerPaths.under(dir)
+    sink = LocalFileSink(paths.audit_dir)
+    since_dt = datetime.fromisoformat(since) if since else None
+    until_dt = datetime.fromisoformat(until) if until else None
+    try:
+        manifest = write_evidence_pack(
+            dest,
+            sink,
+            policy_path=paths.policy if paths.policy.exists() else None,
+            since=since_dt,
+            until=until_dt,
+        )
+    except FileExistsError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"wrote evidence pack to {dest}")
+    typer.echo(
+        f"{manifest.entries_in_window} entries, audit integrity: "
+        f"{'OK' if manifest.audit_integrity.ok else 'BROKEN'}"
+    )
 
 
 @app.command()

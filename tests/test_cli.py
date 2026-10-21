@@ -189,3 +189,39 @@ class TestAuditCommands:
         assert export_result.exit_code == 0
         assert dest.exists()
         assert len(dest.read_text().splitlines()) == 2
+
+
+class TestEvidenceCommands:
+    def test_export_writes_a_pack(self, tmp_path: Path) -> None:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        from custody.audit import AuditLog, EventType, LocalFileSink
+        from custody.mcp_server import ServerPaths
+
+        runner.invoke(app, ["init", "--dir", str(tmp_path)])
+        paths = ServerPaths.under(tmp_path)
+        log = AuditLog(
+            LocalFileSink(paths.audit_dir),
+            Ed25519PrivateKey.generate(),
+            session_id="s",
+            principal="agent_session",
+        )
+        log.append(EventType.request, {"tool": "catalog.list"})
+        log.append(EventType.decision, {"tool": "catalog.list", "decision": "allow"})
+
+        dest = tmp_path / "pack"
+        result = runner.invoke(app, ["evidence", "export", str(dest), "--dir", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        assert "audit integrity: OK" in result.output
+        assert (dest / "manifest.json").exists()
+        assert (dest / "README.md").exists()
+        assert (dest / "policy.yaml").exists()  # custody init wrote a starter policy
+
+    def test_export_refuses_a_non_empty_destination(self, tmp_path: Path) -> None:
+        runner.invoke(app, ["init", "--dir", str(tmp_path)])
+        dest = tmp_path / "pack"
+        dest.mkdir()
+        (dest / "x").write_text("already here")
+        result = runner.invoke(app, ["evidence", "export", str(dest), "--dir", str(tmp_path)])
+        assert result.exit_code == 1
+        assert "already exists" in result.output

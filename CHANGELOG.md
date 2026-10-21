@@ -24,6 +24,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   on disk still matches a reviewed-and-signed version. `PolicyEngine
   .load_verified(path)` loads a policy only when a valid bundle covers
   it. See docs/policy-reference.md.
+- `custody.evidence`: evidence-pack export. `custody evidence export
+  <dest-dir>` writes a manifest, a human-readable README, a full audit
+  export, and a copy of the policy file and its signed bundle (if
+  present) to a new directory. The manifest includes counts per audit
+  event type and per policy decision, a fresh `custody audit verify`
+  result, and a fixed set of mappings from Custody's own mechanisms to
+  SOC 2 Common Criteria language (`custody/evidence/framework.py`),
+  each naming a real mechanism and a real limitation, same honest style
+  as docs/threat-model.md. Explicitly not a certification or an audit,
+  every pack says so in its own `README.md` and `manifest.json`. See
+  docs/evidence-pack.md.
 
 ## [0.1.0] - 2026-10-21
 
