@@ -3,7 +3,7 @@
 # (`docker build -f docker/sandbox.Dockerfile -t custody-sandbox:duckdb .`);
 # not published to a registry in v0.1, see docs/demo.md for the exact build
 # step the demo runs before it starts.
-FROM python:3.12-alpine
+FROM python:3.15-alpine
 
 RUN pip install --no-cache-dir duckdb==1.1.3
 
