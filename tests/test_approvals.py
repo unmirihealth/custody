@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -45,9 +46,14 @@ def clock() -> FakeClock:
 
 
 @pytest.fixture
-def broker(tmp_path: Path, principals: PrincipalDirectory, clock: FakeClock) -> ApprovalBroker:
+def broker(
+    tmp_path: Path, principals: PrincipalDirectory, clock: FakeClock
+) -> Iterator[ApprovalBroker]:
     store = ApprovalStore(tmp_path / "approvals.db")
-    return ApprovalBroker(store, principals, clock=clock)
+    try:
+        yield ApprovalBroker(store, principals, clock=clock)
+    finally:
+        store.close()
 
 
 def _summary() -> ApprovalSummary:

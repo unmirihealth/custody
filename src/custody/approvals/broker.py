@@ -90,6 +90,9 @@ class ApprovalBroker:
             default_timeout=default_timeout,
         )
 
+    def close(self) -> None:
+        self._store.close()
+
     def request(
         self,
         *,

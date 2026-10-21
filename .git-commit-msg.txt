@@ -1,0 +1,34 @@
+feat(gateway): the orchestration layer tying policy, approvals, and audit together
+
+Gateway.authorize() is the README's seven-step flow minus execution
+and output-guarding, which custody/tools/* (next) will call after
+authorize() clears a request, writing their own execution/result audit
+entries once real work has actually happened. Every step writes an
+audit entry first: request, decision, and (when the policy requires
+it) two approval entries, requested and resolved.
+
+Model routing runs independently of the tool/data policy decision and
+short-circuits to deny before any approval wait begins if the declared
+model isn't on the data class's allowlist, an identified-data query
+that would otherwise need a human's approval never bothers anyone if
+the model routing alone already kills it.
+
+require_approval is guarded with a real runtime check, not a bare
+assert, since Policy's own validation guarantee (approvals is always
+set when decision is require_approval) lives in a different module and
+assert statements vanish under python -O.
+
+Integration tests wire real Catalog, PolicyEngine, AuditLog, and
+ApprovalBroker instances together (no mocks) against the existing
+fixtures. The approval-flow tests inject the broker's poll-wait
+`sleep` callback to decide the approval synchronously on the first
+poll instead of actually waiting, the same pattern already proven in
+test_approvals.py, after an earlier version of these tests used
+background threads and could hang indefinitely (a no-op injected sleep
+paired with a dataset that actually needed approval span the wait loop
+for its full default timeout). Added Gateway.close() /
+ApprovalBroker.close() so tests (and any future long-running caller)
+can release the approvals SQLite connection cleanly.
+
+95-100% coverage on the new code. ruff and mypy --strict clean across
+all 25 source files.
