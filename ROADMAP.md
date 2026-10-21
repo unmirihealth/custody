@@ -7,7 +7,9 @@ every claim in the README stayed true on release day. Items move to
 - SSO/OIDC approver identity (v0.1 uses a local `principals.yaml`)
 - Cedar policy backend (OPA is built, see Built below; policy.yaml plus
   the default `PolicyEngine` remains the baseline either way)
-- FHIR and OMOP connectors
+- OMOP CDM connector (FHIR is built, see Built below; a relational
+  common data model is a different problem from FHIR's REST/resource
+  model, not an extension of the same connector)
 - ~~gVisor/Firecracker sandbox options~~ **will not be built on this
   project's current macOS development machine.** Both require a Linux
   host with KVM (gVisor's runsc needs ptrace or KVM platform support;
@@ -31,6 +33,10 @@ every claim in the README stayed true on release day. Items move to
   of in-process. Verified against a real OPA container, plus the Rego
   module's own `opa test` suite. Cedar remains deferred above. See
   docs/opa-policy-backend.md and CHANGELOG.md [Unreleased].
+- **FHIR connector** -- `fhir.search`, `custody.catalog.SourceKind
+  .fhir`. FHIR only, not OMOP CDM (split out above). Verified against
+  a real local HAPI FHIR server. See docs/fhir-connector.md and
+  CHANGELOG.md [Unreleased].
 - **Kubernetes deployment** -- `k8s/` (plain manifests, no Helm
   chart), `docker/custody.Dockerfile`, `custody serve --transport
   streamable-http`. Single replica by design; sandbox execution tools

@@ -97,6 +97,11 @@ def sql_query(ctx: ToolContext, dataset_id: str, query: str) -> ToolResult:
     entry = ctx.catalog.get(dataset_id)
     if entry is None:
         return ToolResult(denied=True, reason=f"dataset {dataset_id!r} is not in the catalog")
+    if entry.path is None:  # a fhir-source entry; see custody.connectors.fhir instead
+        return ToolResult(
+            denied=True,
+            reason=f"dataset {dataset_id!r} is not a file dataset (source={entry.source})",
+        )
 
     container_path = f"/data/{dataset_id}{entry.path.suffix}"
     mount = DatasetMount(dataset_id=dataset_id, host_path=entry.path, container_path=container_path)

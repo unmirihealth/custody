@@ -1,14 +1,14 @@
-"""Wires the six built-in tools to a real MCP server (mcp>=2.3, the v2
+"""Wires the built-in tools to a real MCP server (mcp>=2.3, the v2
 API: `from mcp.server import MCPServer`, `@mcp.tool()`). `custody serve`
 is the thin CLI entry point around `build_server()` below.
 
-Scope note: this builds a server that exposes Custody's own six tools.
-Proxying tools from a downstream MCP server (the README's architecture
-diagram mentions this as part of the gateway's role) is NOT implemented
-in v0.1, every tool call in this release goes through one of the six
-built-ins. Treat "proxied downstream MCP server" in README.md as the
-target architecture, not current behavior, until ROADMAP.md says
-otherwise.
+Scope note: this builds a server that exposes Custody's own built-in
+tools. Proxying tools from a downstream MCP server (the README's
+architecture diagram mentions this as part of the gateway's role) is
+NOT implemented in v0.1, every tool call in this release goes through
+one of the built-ins. Treat "proxied downstream MCP server" in
+README.md as the target architecture, not current behavior, until
+ROADMAP.md says otherwise.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from custody.tools import (
     ToolContext,
     approvals_status,
     catalog_list,
+    fhir_search,
     files_export,
     files_write,
     shell_run,
@@ -183,5 +184,17 @@ def build_server(
     )
     def _approvals_status(approval_id: str) -> dict[str, object]:
         return approvals_status(ctx, approval_id).model_dump()
+
+    @mcp.tool(
+        name="fhir.search",
+        description=(
+            "Read-only FHIR search over one catalog dataset whose source is a FHIR "
+            "server (policy-gated, resource-type-allowlisted)."
+        ),
+    )
+    def _fhir_search(
+        source_id: str, resource_type: str, params: dict[str, str] | None = None, count: int = 20
+    ) -> dict[str, object]:
+        return fhir_search(ctx, source_id, resource_type, params, count).model_dump()
 
     return mcp

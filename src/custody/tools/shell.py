@@ -35,6 +35,11 @@ def shell_run(
         entry = ctx.catalog.get(dataset_id)
         if entry is None:
             return ToolResult(denied=True, reason=f"dataset {dataset_id!r} is not in the catalog")
+        if entry.path is None:  # a fhir-source entry; see custody.connectors.fhir instead
+            return ToolResult(
+                denied=True,
+                reason=f"dataset {dataset_id!r} is not a file dataset (source={entry.source})",
+            )
         mounts.append(
             DatasetMount(
                 dataset_id=dataset_id,

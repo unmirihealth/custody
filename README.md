@@ -20,7 +20,7 @@ Custody Gateway
    |
    v
 Custody's own tools: catalog.list, sql.query, shell.run, files.write,
-files.export, approvals.status
+files.export, approvals.status, fhir.search
 ```
 
 Status: v0.1, functionally complete and tested (196 tests, 96%
@@ -29,7 +29,7 @@ tagged or published; see CHANGELOG.md for what shipped in which
 commit. One scope note: the architecture above describes a gateway
 that can also proxy a downstream MCP server's tools, that proxying is
 **not implemented** in v0.1, every tool call this release handles goes
-through one of the six built-ins listed above (see
+through one of the built-ins listed above (see
 `custody/mcp_server.py`'s module docstring).
 
 ## Quickstart (under 5 minutes to the demo, Docker required)
@@ -65,7 +65,7 @@ approvals web UI.
 Two integration modes:
 
 - **MCP gateway (primary).** Custody runs as an MCP server
-  (`custody serve`) exposing its six tools. See
+  (`custody serve`) exposing its built-in tools. See
   `examples/claude-code-mcp-config.json` for the config snippet.
 - **`PreToolUse` hook adapter (secondary).** Routes Claude Code's own
   native tool calls (Bash, Write, Edit, WebFetch) through the same
@@ -123,6 +123,7 @@ See docs/integrations/claude-code.md for both, with exact config.
 | Model routing | `custody/routing.py` | docs/threat-model.md |
 | Gateway | `custody/gateway.py` | this README |
 | Built-in tools | `custody/tools/` | this README |
+| FHIR connector (read-only, FHIR only not OMOP) | `custody/tools/fhir.py` | docs/fhir-connector.md |
 | MCP server | `custody/mcp_server.py` | docs/integrations/claude-code.md |
 | CLI | `custody/cli/` | `custody --help` |
 | Local approvals UI | `custody/approvals_ui.py` | this README |

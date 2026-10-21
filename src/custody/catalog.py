@@ -1,13 +1,20 @@
 """Data catalog and classification.
 
-Loads catalog.yaml: a list of datasets, each with an id, a path, a format
-(csv or parquet), and a data_class drawn from the ordered enum synthetic
-< deidentified < limited_data_set < identified. Optional column-level tags
-(for example mrn: direct_identifier) live alongside a dataset's entry.
+Loads catalog.yaml: a list of datasets, each with an id, a data_class
+drawn from the ordered enum synthetic < deidentified < limited_data_set
+< identified, and a source. Two source kinds exist: `file` (a path and
+a format, csv or parquet -- the only kind in v0.1) and `fhir` (a base
+URL and an allowlist of resource types, see custody.connectors.fhir and
+docs/fhir-connector.md). Optional column-level tags (for example mrn:
+direct_identifier) live alongside a file-backed entry.
 
 A dataset id that is not in the catalog classifies as `identified`, the
 most restrictive class, not the least. This is the catalog's half of
-"deny by default"; the other half lives in custody.policy.
+"deny by default"; the other half lives in custody.policy. Both source
+kinds share this one classification path deliberately: a policy rule
+written against a dataset id does not need to know or care whether that
+id resolves to a local file or a FHIR search, custody.gateway.Gateway
+and custody.policy are unmodified by the fhir source kind existing.
 """
 
 from __future__ import annotations
@@ -17,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class DataClass(StrEnum):
@@ -92,16 +99,37 @@ class DatasetFormat(StrEnum):
     parquet = "parquet"
 
 
+class SourceKind(StrEnum):
+    """`file`: a local path, mountable into the sandbox (sql.query,
+    shell.run). `fhir`: a remote FHIR server, queried by the fhir.search
+    tool (custody.connectors.fhir); never mounted into the sandbox,
+    see docs/fhir-connector.md for why that tool makes its own request
+    directly rather than through custody.sandbox."""
+
+    file = "file"
+    fhir = "fhir"
+
+
 class CatalogEntry(BaseModel):
-    """One dataset's catalog record."""
+    """One dataset's catalog record. `path`/`format` are required for
+    `source=file` and absent for `source=fhir`; `base_url` is required
+    for `source=fhir` and absent for `source=file` -- enforced below,
+    not by making every field optional and hoping callers check."""
 
     model_config = ConfigDict(frozen=True)
 
     id: str
-    path: Path
-    format: DatasetFormat
     data_class: DataClass
+    source: SourceKind = SourceKind.file
+    path: Path | None = None
+    format: DatasetFormat | None = None
     columns: dict[str, ColumnTag] = Field(default_factory=dict)
+    base_url: str | None = None
+    # Which FHIR resource types (Condition, Observation, ...) this
+    # entry may be searched for. Deny-by-default like model_allowlist:
+    # an empty list means NO resource type is allowed, not "any type",
+    # same posture as custody.policy.engine.check_model_allowlist.
+    resource_types: list[str] = Field(default_factory=list)
 
     @field_validator("id")
     @classmethod
@@ -109,6 +137,22 @@ class CatalogEntry(BaseModel):
         if not v.strip():
             raise ValueError("dataset id must not be empty")
         return v
+
+    @model_validator(mode="after")
+    def _fields_match_source(self) -> CatalogEntry:
+        if self.source == SourceKind.file:
+            if self.path is None or self.format is None:
+                raise ValueError(f"dataset {self.id!r}: source=file requires path and format")
+            if self.base_url is not None or self.resource_types:
+                raise ValueError(
+                    f"dataset {self.id!r}: base_url/resource_types only apply to source=fhir"
+                )
+        elif self.source == SourceKind.fhir:
+            if self.base_url is None:
+                raise ValueError(f"dataset {self.id!r}: source=fhir requires base_url")
+            if self.path is not None or self.format is not None:
+                raise ValueError(f"dataset {self.id!r}: path/format only apply to source=file")
+        return self
 
 
 class _CatalogFile(BaseModel):
@@ -146,14 +190,15 @@ class Catalog:
                 raise DuplicateDatasetIdError(
                     f"dataset id {entry.id!r} is declared more than once in {path}"
                 )
-            if not entry.path.is_absolute():
+            if entry.source == SourceKind.file and not entry.path.is_absolute():  # type: ignore[union-attr]
                 # A relative path in catalog.yaml is relative to that
                 # file's own directory, not to whatever the current
                 # working directory happens to be when `custody` runs.
                 # Otherwise `custody serve` (or the sandbox mount it
                 # drives) breaks the moment it's invoked from anywhere
                 # but the exact directory the catalog was written in.
-                entry = entry.model_copy(update={"path": catalog_dir / entry.path})
+                # (fhir-source entries have no path at all, see above.)
+                entry = entry.model_copy(update={"path": catalog_dir / entry.path})  # type: ignore[operator]
             entries[entry.id] = entry
         return cls(entries)
 

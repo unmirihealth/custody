@@ -17,7 +17,7 @@ custody serve --transport streamable-http --host 0.0.0.0 --port 8080 --dir /data
 Python SDK Custody already depends on (`mcp>=2.3`); the only new code
 here is the CLI flags (`--transport`, `--host`, `--port`) wiring up to
 it. Everything else -- the policy engine, the audit log, the approval
-broker, the six built-in tools -- is identical code to the stdio path,
+broker, the built-in tools -- is identical code to the stdio path,
 just reached over HTTP instead of stdin/stdout.
 
 ## Quickstart against a local `kind` cluster

@@ -93,6 +93,23 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   in-cluster Pod -- the same script a new `.github/workflows
   /k8s-smoke.yml` CI workflow now runs on every push touching `k8s/`,
   the Dockerfile, or `src/custody/`.
+- FHIR connector (`fhir.search`), FHIR only, not OMOP CDM (ROADMAP.md's
+  combined item split explicitly). `custody.catalog.CatalogEntry`
+  gained a `source` kind (`file`, the original and still default, or
+  `fhir`: a `base_url` and a deny-by-default `resource_types`
+  allowlist, no `path`/`format`) -- one catalog.yaml, one classify()
+  path, policy rules and approval gates apply identically to both
+  kinds with zero changes to `custody.policy` or `custody.gateway`.
+  Read-only (`GET` only), resource-type-allowlisted, result count
+  capped, audit entries carry a count never resource content
+  (docs/threat-model.md T6). Does not run through `custody.sandbox`
+  (a bounded, catalog-declared GET is not arbitrary code execution,
+  same posture as the webhook notifier and the OPA backend's own
+  direct `urllib` calls). Tested against a real local
+  `hapiproject/hapi` FHIR server (not a mock, not a public test
+  server, so CI doesn't depend on one): a synthetic Patient/Condition
+  actually gets found by search, and a deny-everything policy actually
+  blocks the call. See docs/fhir-connector.md.
 
 ## [0.1.0] - 2026-10-21
 

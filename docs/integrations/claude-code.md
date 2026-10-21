@@ -5,7 +5,7 @@ mutually exclusive, but most setups need only one.
 
 ## MCP gateway (primary)
 
-Custody runs as an MCP server over stdio and exposes its six built-in
+Custody runs as an MCP server over stdio and exposes its built-in
 tools (`catalog.list`, `sql.query`, `shell.run`, `files.write`,
 `files.export`, `approvals.status`). The agent calls these instead of
 reaching data or a shell directly.
@@ -41,7 +41,7 @@ reaching data or a shell directly.
    not an authentication credential, just a label. Pick something
    that identifies the session (a username, a project name).
 
-3. Start a Claude Code session. The agent now sees Custody's six tools
+3. Start a Claude Code session. The agent now sees Custody's tools
    instead of (or alongside) whatever it would otherwise use for data
    access. A tool call that needs approval blocks (up to the policy's
    configured timeout, default 15 minutes) while a human runs

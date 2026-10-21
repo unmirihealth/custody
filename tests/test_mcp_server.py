@@ -27,7 +27,7 @@ class TestBuildServer:
         mcp = build_server(paths, session_id="test", principal="agent")
         assert mcp.name == "Custody"
 
-    def test_registers_all_six_tools(self, paths: ServerPaths) -> None:
+    def test_registers_all_seven_tools(self, paths: ServerPaths) -> None:
         mcp = build_server(paths, session_id="test", principal="agent")
         tools = asyncio.run(mcp.list_tools())
         names = {t.name for t in tools}
@@ -38,6 +38,7 @@ class TestBuildServer:
             "files.write",
             "files.export",
             "approvals.status",
+            "fhir.search",
         }
 
     def test_generates_a_signing_key_on_first_build(self, paths: ServerPaths) -> None:

@@ -17,7 +17,12 @@ def catalog_list(ctx: ToolContext) -> ToolResult:
         return ToolResult(denied=True, reason=authz.reason)
 
     entries = [
-        {"id": e.id, "data_class": e.data_class.value, "format": e.format.value}
+        {
+            "id": e.id,
+            "data_class": e.data_class.value,
+            "source": e.source.value,
+            "format": e.format.value if e.format is not None else None,
+        }
         for e in ctx.catalog.list()
     ]
     ctx.gateway.audit.append(
