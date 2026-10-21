@@ -76,6 +76,23 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `check_model_allowlist` are now free functions (previously private
   `PolicyEngine` methods), reused by `OPAPolicyEngine`. No behavior
   change for `PolicyEngine` itself.
+- Kubernetes deployment: `k8s/` (plain manifests + `kustomization.yaml`,
+  no Helm chart) and `docker/custody.Dockerfile`. `custody serve`
+  gained `--transport streamable-http --host --port` (stdio stays the
+  default), using the MCP Python SDK's own `streamable-http` transport
+  mode, no new protocol code. Single-replica by design: `LocalFileSink`
+  and `ApprovalStore` both assume one writer, documented plainly in
+  docs/kubernetes.md rather than silently allowing a broken
+  multi-replica deployment. Sandbox execution tools (`shell.run`,
+  `sql.query`) resolve to denied inside a plain Pod (no Docker daemon
+  available by default, intentionally not wired up, see the doc for
+  why). Verified end to end against a real local `kind` cluster:
+  `k8s/smoke-test.sh` builds the image, deploys it, confirms the
+  signing key survives a Pod restart (audit chain continuity), and
+  runs a real MCP `initialize` handshake through the Service from an
+  in-cluster Pod -- the same script a new `.github/workflows
+  /k8s-smoke.yml` CI workflow now runs on every push touching `k8s/`,
+  the Dockerfile, or `src/custody/`.
 
 ## [0.1.0] - 2026-10-21
 

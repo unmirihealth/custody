@@ -1,0 +1,15 @@
+# Backs /data/.custody/ (the Ed25519 signing key, the audit log, the
+# approvals SQLite database) -- state that must survive a Pod restart,
+# unlike an emptyDir. ReadWriteOnce is deliberate: see
+# docs/kubernetes.md for why this is a single-replica deployment.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: custody-data
+  namespace: custody
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

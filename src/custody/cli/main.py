@@ -101,14 +101,32 @@ def serve(
     dir: Path = DirOpt,
     session_id: str = typer.Option("default", help="Audit log session id."),
     principal: str = typer.Option(..., help="Identity of the agent/session using this gateway."),
+    transport: str = typer.Option(
+        "stdio", help="stdio (default, for a local agent) or streamable-http (for a server)."
+    ),
+    host: str = typer.Option("127.0.0.1", help="Bind host, streamable-http only."),
+    port: int = typer.Option(8080, help="Bind port, streamable-http only."),
 ) -> None:
-    """Run the MCP gateway (stdio). Reads CUSTODY_WEBHOOK_URL from the
+    """Run the MCP gateway. Reads CUSTODY_WEBHOOK_URL from the
     environment, if set, to notify a Slack-compatible webhook on every
-    new pending approval."""
+    new pending approval.
+
+    `--transport streamable-http --host 0.0.0.0` is the mode a
+    Kubernetes Deployment uses (see k8s/ and docs/kubernetes.md): a
+    long-running HTTP server a Service/Ingress can route to, as
+    opposed to the default stdio mode, which only makes sense for a
+    locally-spawned agent session.
+    """
     paths = ServerPaths.under(dir)
     webhook_url = os.environ.get("CUSTODY_WEBHOOK_URL")
     mcp = build_server(paths, session_id=session_id, principal=principal, webhook_url=webhook_url)
-    mcp.run()
+    if transport == "stdio":
+        mcp.run()
+    elif transport == "streamable-http":
+        mcp.run(transport="streamable-http", host=host, port=port)
+    else:
+        typer.echo(f"unsupported transport: {transport!r} (use stdio or streamable-http)", err=True)
+        raise typer.Exit(1)
 
 
 @policy_app.command("check")

@@ -1,0 +1,32 @@
+# Starter policy/catalog/principals, identical in content to what
+# `custody init` writes locally (src/custody/cli/main.py's
+# _STARTER_POLICY etc.) -- deny-by-default, no datasets, no approvers.
+# Replace this ConfigMap's data with a real reviewed-and-signed
+# policy.yaml before pointing this deployment at anything real; see
+# docs/kubernetes.md and docs/policy-reference.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custody-config
+  namespace: custody
+data:
+  policy.yaml: |
+    # See docs/policy-reference.md. "default: deny" is enforced by Custody
+    # itself, not just a convention; a non-deny default fails to load.
+    rules:
+      - id: catalog-list-ok
+        when: { tool: catalog.list }
+        decision: allow
+    default: deny
+    model_allowlist: {}
+  catalog.yaml: |
+    # Datasets Custody knows about. An id not listed here classifies as
+    # "identified", the most restrictive class, when referenced by a tool
+    # call. See docs/policy-reference.md.
+    datasets: []
+  principals.yaml: |
+    # Approver identities and the roles they hold. An id not listed here
+    # cannot approve anything (UnauthorizedApproverError), no SSO wired
+    # into this manifest by default; see docs/sso-oidc.md for the mock-
+    # IdP-verified SSO work and its own limitations.
+    principals: []

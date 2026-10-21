@@ -16,7 +16,6 @@ every claim in the README stayed true on release day. Items move to
   isolation code would be worse than not shipping it. Revisit if this
   project ever gets a Linux CI runner or dev box with KVM. v0.1 uses
   standard Docker; see docs/threat-model.md T2.
-- Kubernetes deployment
 - Approver mobile notifications
 
 ## Built (moved here from the list above)
@@ -32,6 +31,14 @@ every claim in the README stayed true on release day. Items move to
   of in-process. Verified against a real OPA container, plus the Rego
   module's own `opa test` suite. Cedar remains deferred above. See
   docs/opa-policy-backend.md and CHANGELOG.md [Unreleased].
+- **Kubernetes deployment** -- `k8s/` (plain manifests, no Helm
+  chart), `docker/custody.Dockerfile`, `custody serve --transport
+  streamable-http`. Single replica by design; sandbox execution tools
+  need a deployment-provided Docker daemon, not wired up by default.
+  Verified against a real local `kind` cluster, including a signing-
+  key-survives-a-restart check and a real MCP handshake through the
+  Service; `.github/workflows/k8s-smoke.yml` runs the same script in
+  CI. See docs/kubernetes.md and CHANGELOG.md [Unreleased].
 - **S3 Object Lock audit sink** -- `custody.audit.s3_sink
   .S3ObjectLockSink`. Verified against real LocalStack for
   read/write/list/ordering correctness; the retention guarantee itself

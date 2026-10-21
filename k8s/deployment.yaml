@@ -1,0 +1,98 @@
+# Single-replica by design -- see docs/kubernetes.md "Why one
+# replica" before changing `replicas:`. Image name/tag is a
+# placeholder (`custody-gateway:latest`); build it with
+# `docker build -f docker/custody.Dockerfile -t custody-gateway:latest .`
+# and load it into your cluster (for a local `kind` cluster:
+# `kind load docker-image custody-gateway:latest`), or push it to a
+# registry and update `image:` below, before applying this manifest.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custody-gateway
+  namespace: custody
+  labels:
+    app: custody-gateway
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # never two Pods writing the same PVC-backed SQLite/audit state at once
+  selector:
+    matchLabels:
+      app: custody-gateway
+  template:
+    metadata:
+      labels:
+        app: custody-gateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001 # so the PVC is writable by the image's non-root user
+      containers:
+        - name: custody-gateway
+          image: custody-gateway:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --transport
+            - streamable-http
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "8080"
+            - --dir
+            - /data
+            - --principal
+            - k8s-gateway
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - secretRef:
+                name: custody-webhook
+                optional: true # CUSTODY_WEBHOOK_URL; see docs/kubernetes.md
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/policy.yaml
+              subPath: policy.yaml
+            - name: config
+              mountPath: /data/catalog.yaml
+              subPath: catalog.yaml
+            - name: config
+              mountPath: /data/principals.yaml
+              subPath: principals.yaml
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: custody-data
+        - name: config
+          configMap:
+            name: custody-config
+        - name: tmp
+          emptyDir: {} # readOnlyRootFilesystem above needs a writable /tmp somewhere

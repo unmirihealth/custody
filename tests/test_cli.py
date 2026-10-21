@@ -28,6 +28,32 @@ class TestInit:
         assert (tmp_path / ".custody" / "signing_key.pem").read_bytes() == key_bytes_before
 
 
+class TestServeTransportValidation:
+    """custody serve actually running (stdio or streamable-http) blocks
+    forever, not something a CliRunner invocation can exercise
+    directly; k8s/smoke-test.sh (docs/kubernetes.md) is where
+    streamable-http gets a real end-to-end run, against a real kind
+    cluster. This only covers the one path that returns instead of
+    blocking: an unsupported --transport value."""
+
+    def test_unsupported_transport_exits_with_a_clear_error(self, tmp_path: Path) -> None:
+        runner.invoke(app, ["init", "--dir", str(tmp_path)])
+        result = runner.invoke(
+            app,
+            [
+                "serve",
+                "--dir",
+                str(tmp_path),
+                "--principal",
+                "test-agent",
+                "--transport",
+                "carrier-pigeon",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "unsupported transport" in result.output
+
+
 class TestPolicyCommands:
     def test_check_valid_policy(self, fixtures_dir: Path) -> None:
         result = runner.invoke(app, ["policy", "check", str(fixtures_dir / "policy.yaml")])

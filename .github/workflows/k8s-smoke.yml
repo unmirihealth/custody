@@ -1,0 +1,37 @@
+name: Kubernetes smoke test
+
+# Separate from ci.yml deliberately: this spins up a real kind cluster
+# (slower, and a different kind of failure mode -- cluster networking,
+# not Python) to verify k8s/ actually deploys and serves real MCP
+# traffic, not just that the manifests are syntactically valid. See
+# docs/kubernetes.md and k8s/smoke-test.sh, which this workflow runs
+# unmodified, the same script a developer runs locally.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "k8s/**"
+      - "docker/custody.Dockerfile"
+      - "src/custody/**"
+      - ".github/workflows/k8s-smoke.yml"
+  pull_request:
+    paths:
+      - "k8s/**"
+      - "docker/custody.Dockerfile"
+      - "src/custody/**"
+      - ".github/workflows/k8s-smoke.yml"
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Create a kind cluster
+        uses: helm/kind-action@v1.15.1
+        with:
+          cluster_name: kind
+
+      - name: Run the smoke test
+        run: ./k8s/smoke-test.sh
