@@ -4,7 +4,6 @@ Not in v0.1 scope. Listed here instead of built so v0.1 stayed small and
 every claim in the README stayed true on release day. Items move to
 "Built" below as they land; see CHANGELOG.md for exact detail on each.
 
-- SSO/OIDC approver identity (v0.1 uses a local `principals.yaml`)
 - Cedar policy backend (OPA is built, see Built below; policy.yaml plus
   the default `PolicyEngine` remains the baseline either way)
 - OMOP CDM connector (FHIR is built, see Built below; a relational
@@ -55,6 +54,15 @@ every claim in the README stayed true on release day. Items move to
   `custody.sandbox.egress_proxy`, `SandboxConfig.egress_allowlist`. See
   docs/egress-proxy.md, docs/threat-model.md T9, and CHANGELOG.md
   [Unreleased].
+- **SSO/OIDC approver identity** -- partial: `custody.approvals.oidc
+  .OidcVerifier`, `custody approvals approve/deny --as-token`. Token
+  verification only (signature, issuer, expiry, optional audience,
+  against a real IdP's JWKS); no browser login flow, no session
+  management, the approvals web UI is unaffected.
+  `principals.yaml` remains the one source of truth for roles.
+  Verified against a real local mock OIDC provider
+  (`ghcr.io/navikt/mock-oauth2-server`). See docs/sso-oidc.md and
+  CHANGELOG.md [Unreleased].
 - **Webhook approval notifications** -- this was actually v0.1's own
   stated scope (the approval broker's three channels: CLI, local web
   UI, webhook), just not built in time for the v0.1.0 release. Not a

@@ -62,8 +62,12 @@ model_allowlist: {}
 
 _STARTER_PRINCIPALS = """\
 # Approver identities and the roles they hold. An id not listed here
-# cannot approve anything (UnauthorizedApproverError), no SSO in v0.1,
-# see ROADMAP.md.
+# cannot approve anything (UnauthorizedApproverError). `custody
+# approvals approve/deny --as-token <jwt>` can verify an approver's
+# identity against a real OIDC provider instead of trusting a bare
+# --as string (see docs/sso-oidc.md); this file is still the one
+# source of truth for which roles any given principal id holds either
+# way.
 principals: []
 """
 
@@ -224,26 +228,75 @@ def approvals_list(dir: Path = DirOpt) -> None:
         broker.close()
 
 
+_AS_IDENTITY_JWT_HELP = (
+    "Approver identity as a signed OIDC ID token instead of a bare string "
+    "(docs/sso-oidc.md); requires CUSTODY_OIDC_ISSUER and CUSTODY_OIDC_JWKS_URL "
+    "in the environment. Mutually exclusive with --as."
+)
+
+
 @approvals_app.command("approve")
 def approvals_approve(
     approval_id: str,
-    as_: str = typer.Option(..., "--as", help="Approver identity."),
+    as_: str | None = typer.Option(None, "--as", help="Approver identity."),
+    as_token: str | None = typer.Option(None, "--as-token", help=_AS_IDENTITY_JWT_HELP),
     reason: str = typer.Option(...),
     dir: Path = DirOpt,
 ) -> None:
     """Approve one pending approval."""
-    _decide(dir, approval_id, as_, True, reason)
+    _decide(dir, approval_id, _resolve_approver(as_, as_token), True, reason)
 
 
 @approvals_app.command("deny")
 def approvals_deny(
     approval_id: str,
-    as_: str = typer.Option(..., "--as", help="Approver identity."),
+    as_: str | None = typer.Option(None, "--as", help="Approver identity."),
+    as_token: str | None = typer.Option(None, "--as-token", help=_AS_IDENTITY_JWT_HELP),
     reason: str = typer.Option(...),
     dir: Path = DirOpt,
 ) -> None:
     """Deny one pending approval."""
-    _decide(dir, approval_id, as_, False, reason)
+    _decide(dir, approval_id, _resolve_approver(as_, as_token), False, reason)
+
+
+def _resolve_approver(as_: str | None, as_token: str | None) -> str:
+    """Exactly one of --as / --as-token must be given. --as-token is
+    verified against an OIDC provider configured via CUSTODY_OIDC_ISSUER
+    / CUSTODY_OIDC_JWKS_URL (optionally CUSTODY_OIDC_AUDIENCE,
+    CUSTODY_OIDC_SUBJECT_CLAIM, default "sub"); see docs/sso-oidc.md for
+    exactly what this does and does not verify."""
+    if (as_ is None) == (as_token is None):
+        typer.echo("exactly one of --as or --as-token is required", err=True)
+        raise typer.Exit(1)
+    if as_ is not None:
+        return as_
+
+    from custody.approvals.oidc import OidcVerificationError, OidcVerifier
+
+    issuer = os.environ.get("CUSTODY_OIDC_ISSUER")
+    jwks_url = os.environ.get("CUSTODY_OIDC_JWKS_URL")
+    if not issuer or not jwks_url:
+        typer.echo(
+            "--as-token requires CUSTODY_OIDC_ISSUER and CUSTODY_OIDC_JWKS_URL "
+            "in the environment",
+            err=True,
+        )
+        raise typer.Exit(1)
+    verifier = OidcVerifier(
+        issuer=issuer,
+        jwks_url=jwks_url,
+        audience=os.environ.get("CUSTODY_OIDC_AUDIENCE"),
+        subject_claim=os.environ.get("CUSTODY_OIDC_SUBJECT_CLAIM", "sub"),
+    )
+    if as_token is None:
+        # Unreachable given the exactly-one check above; narrows the
+        # type for the call below without an `assert` in library code.
+        raise typer.Exit(1)
+    try:
+        return verifier.verify(as_token)
+    except OidcVerificationError as exc:
+        typer.echo(f"token verification failed: {exc.reason}", err=True)
+        raise typer.Exit(1) from exc
 
 
 def _decide(dir: Path, approval_id: str, approver: str, approve: bool, reason: str) -> None:

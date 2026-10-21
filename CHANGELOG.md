@@ -110,6 +110,26 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   server, so CI doesn't depend on one): a synthetic Patient/Condition
   actually gets found by search, and a deny-everything policy actually
   blocks the call. See docs/fhir-connector.md.
+- SSO/OIDC approver identity, scoped to token verification (not a
+  browser login flow, not session management -- see docs/sso-oidc.md
+  for exactly what this is and is not). `custody.approvals.oidc
+  .OidcVerifier` verifies a signed ID token's signature (against the
+  IdP's real JWKS), issuer, expiry, and (optionally) audience, then
+  returns the verified subject claim as the approver's principal id.
+  `custody approvals approve/deny` gained `--as-token <jwt>`, mutually
+  exclusive with the existing `--as <string>`, configured via
+  `CUSTODY_OIDC_ISSUER` / `CUSTODY_OIDC_JWKS_URL` (optionally
+  `CUSTODY_OIDC_AUDIENCE`, `CUSTODY_OIDC_SUBJECT_CLAIM`).
+  `principals.yaml` remains the one source of truth for which roles a
+  principal holds either way; OIDC only strengthens how a caller
+  proves which identity they claim. Requires the optional `sso`
+  dependency group (`pip install custody-mcp[sso]`, `PyJWT[crypto]`);
+  never imported by `custody.approvals`'s own `__init__`, same posture
+  as the S3 sink's boto3. Tested against a real local mock OIDC
+  provider (`ghcr.io/navikt/mock-oauth2-server`), not a hand-rolled
+  JWT: valid-token verification, tampered-signature rejection,
+  wrong-issuer rejection, audience enforcement (only when configured),
+  a custom subject claim, and the full CLI path end to end.
 
 ## [0.1.0] - 2026-10-21
 

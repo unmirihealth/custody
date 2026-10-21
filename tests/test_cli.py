@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from custody.cli.main import app
@@ -180,6 +181,164 @@ class TestApprovalsCommands:
 
         empty_list = runner.invoke(app, ["approvals", "list", "--dir", str(tmp_path)])
         assert "no pending approvals" in empty_list.output
+
+    def test_approve_requires_exactly_one_of_as_or_as_token(
+        self, tmp_path: Path, fixtures_dir: Path
+    ) -> None:
+        import shutil
+
+        shutil.copy(fixtures_dir / "principals.yaml", tmp_path / "principals.yaml")
+
+        neither = runner.invoke(
+            app, ["approvals", "approve", "x", "--reason", "r", "--dir", str(tmp_path)]
+        )
+        assert neither.exit_code == 1
+        assert "exactly one of --as or --as-token" in neither.output
+
+        both = runner.invoke(
+            app,
+            [
+                "approvals",
+                "approve",
+                "x",
+                "--as",
+                "jane_steward",
+                "--as-token",
+                "sometoken",
+                "--reason",
+                "r",
+                "--dir",
+                str(tmp_path),
+            ],
+        )
+        assert both.exit_code == 1
+        assert "exactly one of --as or --as-token" in both.output
+
+    def test_as_token_without_oidc_env_vars_fails_clearly(
+        self, tmp_path: Path, fixtures_dir: Path
+    ) -> None:
+        import shutil
+
+        shutil.copy(fixtures_dir / "principals.yaml", tmp_path / "principals.yaml")
+        result = runner.invoke(
+            app,
+            [
+                "approvals",
+                "approve",
+                "x",
+                "--as-token",
+                "sometoken",
+                "--reason",
+                "r",
+                "--dir",
+                str(tmp_path),
+            ],
+            env={"CUSTODY_OIDC_ISSUER": "", "CUSTODY_OIDC_JWKS_URL": ""},
+        )
+        assert result.exit_code == 1
+        assert "CUSTODY_OIDC_ISSUER" in result.output
+
+
+class TestApprovalsOidcToken:
+    """--as-token end to end, against a real mock OIDC provider, not a
+    mock HTTP layer: see tests/test_oidc.py for OidcVerifier's own
+    dedicated test suite; this confirms the CLI actually wires it up,
+    including resolving the verified identity into a real approval
+    decision."""
+
+    @pytest.fixture(scope="class")
+    def issuer_url(self):  # type: ignore[no-untyped-def]
+        from tests.test_oidc import MOCK_OIDC_IMAGE, _mock_oidc_available, _wait_for_ready
+
+        if not _mock_oidc_available():
+            pytest.skip("Docker daemon not reachable")
+
+        import docker
+
+        client = docker.from_env()
+        name = "custody-test-oidc-cli"
+        try:
+            client.containers.get(name).remove(force=True)
+        except docker.errors.NotFound:
+            pass
+        container = client.containers.run(
+            MOCK_OIDC_IMAGE, detach=True, name=name, ports={"8080/tcp": 18445}
+        )
+        url = "http://localhost:18445/default"
+        try:
+            _wait_for_ready(url)
+            yield url
+        finally:
+            container.remove(force=True)
+
+    def test_decide_with_a_verified_token(
+        self, tmp_path: Path, fixtures_dir: Path, issuer_url: str
+    ) -> None:
+        import shutil
+
+        from custody.approvals import ApprovalBroker, ApprovalSummary
+        from custody.mcp_server import ServerPaths
+        from tests.test_oidc import _mint_token
+
+        shutil.copy(fixtures_dir / "principals.yaml", tmp_path / "principals.yaml")
+        paths = ServerPaths.under(tmp_path)
+        broker = ApprovalBroker.open(paths.approvals_db, paths.principals)
+        approval = broker.request(
+            requester="agent_session",
+            rule_id="r1",
+            summary=ApprovalSummary(tool="sql.query", data_class="identified"),
+            required_count=1,
+            required_roles=["data_steward"],
+        )
+        broker.close()
+
+        token = _mint_token(issuer_url, "jane_steward")
+        result = runner.invoke(
+            app,
+            [
+                "approvals",
+                "approve",
+                approval.id,
+                "--as-token",
+                token,
+                "--reason",
+                "verified via mock IdP",
+                "--dir",
+                str(tmp_path),
+            ],
+            env={"CUSTODY_OIDC_ISSUER": issuer_url, "CUSTODY_OIDC_JWKS_URL": f"{issuer_url}/jwks"},
+        )
+        assert result.exit_code == 0, result.output
+        assert "approved" in result.output
+
+    def test_a_tampered_token_is_rejected(
+        self, tmp_path: Path, fixtures_dir: Path, issuer_url: str
+    ) -> None:
+        import shutil
+
+        from tests.test_oidc import _mint_token
+
+        shutil.copy(fixtures_dir / "principals.yaml", tmp_path / "principals.yaml")
+        token = _mint_token(issuer_url, "jane_steward")
+        tampered = token[:-5] + ("a" if token[-5] != "a" else "b") + token[-4:]
+
+        result = runner.invoke(
+            app,
+            [
+                "approvals",
+                "approve",
+                "doesnt-matter",
+                "--as-token",
+                tampered,
+                "--reason",
+                "r",
+                "--dir",
+                str(tmp_path),
+            ],
+            env={"CUSTODY_OIDC_ISSUER": issuer_url, "CUSTODY_OIDC_JWKS_URL": f"{issuer_url}/jwks"},
+        )
+        assert result.exit_code == 1
+        assert "token verification failed" in result.output
 
 
 class TestAuditCommands:

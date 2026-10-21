@@ -40,6 +40,9 @@ custody-claude-code-hook = "custody.hooks.claude_code:main"
 s3 = [
     "boto3>=1.35",
 ]
+sso = [
+    "PyJWT[crypto]>=2.9",
+]
 dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
@@ -50,6 +53,7 @@ dev = [
     "types-docker>=7.1",
     "boto3>=1.35",
     "boto3-stubs[s3]>=1.35",
+    "PyJWT[crypto]>=2.9",
 ]
 
 [build-system]

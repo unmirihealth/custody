@@ -46,6 +46,12 @@ jobs:
       - name: Test the Rego policy module itself (opa test)
         run: docker run --rm -v "$PWD/docker/opa:/policies" openpolicyagent/opa:latest-static test /policies
 
+      - name: Pull the HAPI FHIR image (used by the FHIR connector tests)
+        run: docker pull hapiproject/hapi:latest
+
+      - name: Pull the mock OIDC image (used by the SSO/OIDC tests)
+        run: docker pull ghcr.io/navikt/mock-oauth2-server:2.1.10
+
       - name: Lint (ruff)
         run: uv run ruff check .
 

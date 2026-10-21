@@ -23,14 +23,18 @@ Custody's own tools: catalog.list, sql.query, shell.run, files.write,
 files.export, approvals.status, fhir.search
 ```
 
-Status: v0.1, functionally complete and tested (196 tests, 96%
-coverage on `src/custody`, `ruff` and `mypy --strict` clean). Not yet
-tagged or published; see CHANGELOG.md for what shipped in which
-commit. One scope note: the architecture above describes a gateway
-that can also proxy a downstream MCP server's tools, that proxying is
-**not implemented** in v0.1, every tool call this release handles goes
-through one of the built-ins listed above (see
-`custody/mcp_server.py`'s module docstring).
+Status: v0.1.0 tagged and public (285 tests, 96% coverage on
+`src/custody`, `ruff` and `mypy --strict` clean); `main` carries
+several items since merged in from ROADMAP.md (signed policy bundles,
+an OPA policy backend, a Kubernetes deployment, a FHIR connector, an
+S3 Object Lock audit sink, an egress allowlist proxy, OIDC-verified
+approver identity) -- see CHANGELOG.md's `[Unreleased]` section for
+exactly what, and for what shipped in v0.1.0 itself. One scope note:
+the architecture above describes a gateway that can also proxy a
+downstream MCP server's tools, that proxying is **not implemented**,
+every tool call this release handles goes through one of the
+built-ins listed above (see `custody/mcp_server.py`'s module
+docstring).
 
 ## Quickstart (under 5 minutes to the demo, Docker required)
 
@@ -96,8 +100,13 @@ See docs/integrations/claude-code.md for both, with exact config.
 - **Not a perfect sandbox.** Docker isolation is one layer in a
   defense-in-depth design, not the whole design. See docs/threat-model.md
   for exactly what v0.1 defends against and what it does not.
-- **Not SSO-backed.** Approver identity in v0.1 comes from a local
-  `principals.yaml`, see ROADMAP.md.
+- **Not a full SSO login flow.** `principals.yaml` is still the one
+  source of truth for which roles a principal holds. `custody
+  approvals approve/deny --as-token` can verify an approver's identity
+  against a real OIDC provider's signed token instead of trusting a
+  bare `--as` string (see docs/sso-oidc.md), but there is no browser
+  login flow, no session management, and the approvals web UI is
+  unaffected (still its own startup-token gate).
 - **Not sandboxed with gVisor or Firecracker.** Both require a Linux
   host with KVM; neither is buildable or verifiable on a macOS
   development machine, so neither is implemented here, see
@@ -113,6 +122,7 @@ See docs/integrations/claude-code.md for both, with exact config.
 | OPA policy backend (optional, same policy.yaml) | `custody/policy/opa_backend.py` | docs/opa-policy-backend.md |
 | Kubernetes deployment | `k8s/`, `docker/custody.Dockerfile` | docs/kubernetes.md |
 | Approval broker | `custody/approvals/` | this README, docs/threat-model.md |
+| SSO/OIDC approver identity (optional, token verification only) | `custody/approvals/oidc.py` | docs/sso-oidc.md |
 | Approval notifier (CLI, UI, webhook) | `custody/approvals/notifier.py` | docs/policy-reference.md, `custody serve --help` |
 | Audit log | `custody/audit/` | docs/audit-log.md |
 | S3 Object Lock audit sink (optional, `pip install custody-mcp[s3]`) | `custody/audit/s3_sink.py` | docs/s3-object-lock-sink.md |
