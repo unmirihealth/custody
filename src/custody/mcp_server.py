@@ -50,6 +50,24 @@ class ServerPaths:
     approvals_db: Path
     workspace_dir: Path
 
+    @classmethod
+    def under(cls, root: Path) -> ServerPaths:
+        """The conventional layout: visible config at `root` (policy.yaml,
+        catalog.yaml, principals.yaml, meant to be read and edited by a
+        compliance reviewer), runtime state under `root/.custody/` (the
+        signing key, the audit log, the approvals database, the session
+        workspace -- not meant to be hand-edited)."""
+        state = root / ".custody"
+        return cls(
+            policy=root / "policy.yaml",
+            catalog=root / "catalog.yaml",
+            principals=root / "principals.yaml",
+            audit_dir=state / "audit",
+            signing_key=state / "signing_key.pem",
+            approvals_db=state / "approvals.db",
+            workspace_dir=state / "workspace",
+        )
+
 
 def _open_audit_log(paths: ServerPaths, session_id: str, principal: str) -> AuditLog:
     if paths.signing_key.exists():
@@ -130,8 +148,10 @@ def build_server(
         return sql_query(ctx, dataset_id, query).model_dump()
 
     @mcp.tool(name="shell.run", description="Run a command in the sandbox.")
-    def _shell_run(command: list[str], datasets: list[str] | None = None) -> dict[str, object]:
-        return shell_run(ctx, command, datasets).model_dump()
+    def _shell_run(
+        command: list[str], datasets: list[str] | None = None, egress: bool = False
+    ) -> dict[str, object]:
+        return shell_run(ctx, command, datasets, egress=egress).model_dump()
 
     @mcp.tool(name="files.write", description="Write a file to the session workspace.")
     def _files_write(path: str, content: str) -> dict[str, object]:

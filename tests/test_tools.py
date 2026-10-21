@@ -44,6 +44,7 @@ def _permissive_policy() -> Policy:
                 when=WhenClause(tool="sql.query", min_data_class=DataClass.identified),
                 decision=Decision.allow,
             ),
+            Rule(id="no-egress", when=WhenClause(egress=True), decision=Decision.deny),
             Rule(id="shell-ok", when=WhenClause(tool="shell.run"), decision=Decision.allow),
             Rule(id="write-ok", when=WhenClause(tool="files.write"), decision=Decision.allow),
             Rule(id="export-ok", when=WhenClause(tool="files.export"), decision=Decision.allow),
@@ -197,6 +198,21 @@ class TestShellRun:
     def test_unknown_dataset_denied(self, ctx: ToolContext) -> None:
         result = shell_run(ctx, ["echo", "hi"], datasets=["nope"])
         assert result.denied is True
+
+    def test_egress_true_is_denied_by_policy_before_the_sandbox(
+        self, ctx: ToolContext
+    ) -> None:
+        """egress=True is a request, not a grant: the policy's no-egress
+        rule still blocks it, same as a real agent asking for network
+        access it isn't allowed to have."""
+        result = shell_run(ctx, ["echo", "hi"], egress=True)
+        assert result.denied is True
+
+    def test_egress_false_is_unaffected_by_the_no_egress_rule(
+        self, ctx: ToolContext
+    ) -> None:
+        result = shell_run(ctx, ["echo", "hi"], egress=False)
+        assert result.denied is False
 
 
 class TestFilesWriteAndExport:

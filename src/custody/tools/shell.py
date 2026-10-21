@@ -13,9 +13,20 @@ from custody.tools.models import ToolResult
 
 
 def shell_run(
-    ctx: ToolContext, command: list[str], datasets: list[str] | None = None
+    ctx: ToolContext,
+    command: list[str],
+    datasets: list[str] | None = None,
+    *,
+    egress: bool = False,
 ) -> ToolResult:
-    authz = ctx.gateway.authorize("shell.run", datasets=datasets or [])
+    """`egress=True` is the agent ASKING for network access, it is not a
+    grant: the policy still has to have a rule that allows egress for
+    this to actually reach the sandbox with networking enabled (most
+    policies won't, see the "no-egress" rule in the shipped starter
+    policy). Passing egress=True against a policy that denies it fails
+    at Gateway.authorize before the sandbox is ever touched.
+    """
+    authz = ctx.gateway.authorize("shell.run", datasets=datasets or [], egress=egress)
     if not authz.allowed:
         return ToolResult(denied=True, reason=authz.reason)
 
@@ -32,7 +43,7 @@ def shell_run(
             )
         )
 
-    exec_result = ctx.sandbox.run(command, mounts=mounts)
+    exec_result = ctx.sandbox.run(command, mounts=mounts, allow_egress=egress)
     ctx.gateway.audit.append(
         EventType.execution,
         {
