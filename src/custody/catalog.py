@@ -138,6 +138,7 @@ class Catalog:
         """
         raw: Any = yaml.safe_load(path.read_text()) or {}
         parsed = _CatalogFile.model_validate(raw)
+        catalog_dir = path.resolve().parent
 
         entries: dict[str, CatalogEntry] = {}
         for entry in parsed.datasets:
@@ -145,6 +146,14 @@ class Catalog:
                 raise DuplicateDatasetIdError(
                     f"dataset id {entry.id!r} is declared more than once in {path}"
                 )
+            if not entry.path.is_absolute():
+                # A relative path in catalog.yaml is relative to that
+                # file's own directory, not to whatever the current
+                # working directory happens to be when `custody` runs.
+                # Otherwise `custody serve` (or the sandbox mount it
+                # drives) breaks the moment it's invoked from anywhere
+                # but the exact directory the catalog was written in.
+                entry = entry.model_copy(update={"path": catalog_dir / entry.path})
             entries[entry.id] = entry
         return cls(entries)
 

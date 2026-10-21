@@ -159,3 +159,53 @@ datasets:
         )
         with pytest.raises(ValidationError):
             Catalog.load(bad)
+
+
+class TestRelativePathResolution:
+    def test_relative_path_resolved_against_catalog_file_directory(
+        self, tmp_path: Path
+    ) -> None:
+        """A relative `path` in catalog.yaml must not depend on the
+        process's current working directory, otherwise mounting it into
+        the sandbox breaks the moment custody is run from anywhere but
+        the exact directory the catalog was authored in."""
+        deployment_dir = tmp_path / "some" / "nested" / "deployment"
+        deployment_dir.mkdir(parents=True)
+        (deployment_dir / "data").mkdir()
+        (deployment_dir / "data" / "a.csv").write_text("x\n1\n")
+
+        catalog_path = deployment_dir / "catalog.yaml"
+        catalog_path.write_text(
+            "datasets:\n"
+            "  - id: a\n"
+            "    path: data/a.csv\n"
+            "    format: csv\n"
+            "    data_class: synthetic\n"
+        )
+
+        cat = Catalog.load(catalog_path)
+        entry = cat.get("a")
+        assert entry is not None
+        assert entry.path == deployment_dir / "data" / "a.csv"
+        assert entry.path.is_absolute()
+
+    def test_absolute_path_left_unchanged(self, tmp_path: Path) -> None:
+        data_file = tmp_path / "somewhere_else" / "a.csv"
+        data_file.parent.mkdir(parents=True)
+        data_file.write_text("x\n1\n")
+
+        catalog_dir = tmp_path / "deployment"
+        catalog_dir.mkdir()
+        catalog_path = catalog_dir / "catalog.yaml"
+        catalog_path.write_text(
+            f"datasets:\n"
+            f"  - id: a\n"
+            f"    path: {data_file}\n"
+            f"    format: csv\n"
+            f"    data_class: synthetic\n"
+        )
+
+        cat = Catalog.load(catalog_path)
+        entry = cat.get("a")
+        assert entry is not None
+        assert entry.path == data_file
