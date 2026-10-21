@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.0] - 2026-10-21
 
 ### Added
 - Project skeleton, threat model (docs/threat-model.md), Apache 2.0
