@@ -38,10 +38,14 @@ docstring).
 
 ## Quickstart (under 5 minutes to the demo, Docker required)
 
-From a clone of this repository (not yet published to PyPI):
+`custody-mcp` is [on PyPI](https://pypi.org/project/custody-mcp/)
+(`pip install custody-mcp`) for the CLI and the gateway itself. The
+demo specifically needs a clone, though: it builds the sandbox's
+DuckDB image from `docker/sandbox.Dockerfile`, which only a clone
+carries.
 
 ```bash
-git clone <this repo>
+git clone https://github.com/unmirihealth/custody
 cd custody
 uv sync --extra dev
 docker build -f docker/sandbox.Dockerfile -t custody-sandbox:duckdb .
