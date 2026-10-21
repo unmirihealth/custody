@@ -82,6 +82,29 @@ class PolicyEngine:
         raw = yaml.safe_load(path.read_text()) or {}
         return cls(Policy.model_validate(raw))
 
+    @classmethod
+    def load_verified(cls, path: Path, bundle_path: Path | None = None) -> PolicyEngine:
+        """Like `load`, but first checks a signed bundle (see
+        custody.policy.bundle) covering this exact file. Raises
+        PolicyBundleError if the bundle is missing, the file has
+        changed since signing, or the signature doesn't verify.
+        `bundle_path` defaults to the file's conventional sidecar path
+        (`bundle_path_for(path)`).
+        """
+        from custody.policy.bundle import (
+            PolicyBundleError,
+            SignedPolicyBundle,
+            bundle_path_for,
+            verify_policy_bundle,
+        )
+
+        resolved_bundle_path = bundle_path or bundle_path_for(path)
+        if not resolved_bundle_path.exists():
+            raise PolicyBundleError(f"no signed bundle at {resolved_bundle_path}")
+        bundle = SignedPolicyBundle.model_validate_json(resolved_bundle_path.read_text())
+        verify_policy_bundle(path, bundle)
+        return cls.load(path)
+
     @property
     def policy(self) -> Policy:
         return self._policy

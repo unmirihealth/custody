@@ -3,6 +3,28 @@
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- `custody.approvals.notifier`: `WebhookNotifier`, the third approval
+  channel named in v0.1's own design (CLI, local web UI, webhook) but
+  not actually built for the initial release. Posts a Slack-compatible
+  `{"text": ...}` payload (tool, data class, approval id, required
+  roles, optionally a review URL -- never dataset content) via stdlib
+  `urllib`; failures (bad URL, network down, non-2xx) are logged and
+  swallowed, never raised, so a notification outage cannot break an
+  approval request. `Gateway` takes an optional `notifier` (defaults to
+  a no-op `NullNotifier`); `custody serve` reads a webhook URL from the
+  `CUSTODY_WEBHOOK_URL` environment variable.
+- `custody.policy.bundle`: signed policy bundles. `custody policy sign
+  <file> --key <signing-key>` writes a `<file>.sig.json` sidecar
+  recording the policy file's exact SHA-256, a timestamp, and an
+  Ed25519 signature (reusing `custody.audit.keys`, the same crypto as
+  audit checkpoints). `custody policy verify <file>` confirms the file
+  on disk still matches a reviewed-and-signed version. `PolicyEngine
+  .load_verified(path)` loads a policy only when a valid bundle covers
+  it. See docs/policy-reference.md.
+
 ## [0.1.0] - 2026-10-21
 
 ### Fixed

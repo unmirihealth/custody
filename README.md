@@ -93,6 +93,10 @@ See docs/integrations/claude-code.md for both, with exact config.
   for exactly what v0.1 defends against and what it does not.
 - **Not SSO-backed.** Approver identity in v0.1 comes from a local
   `principals.yaml`, see ROADMAP.md.
+- **Not sandboxed with gVisor or Firecracker.** Both require a Linux
+  host with KVM; neither is buildable or verifiable on a macOS
+  development machine, so neither is implemented here, see
+  docs/threat-model.md T2 and ROADMAP.md.
 
 ## Components
 
@@ -100,7 +104,9 @@ See docs/integrations/claude-code.md for both, with exact config.
 |---|---|---|
 | Data catalog | `custody/catalog.py` | this README |
 | Policy engine | `custody/policy/` | docs/policy-reference.md |
+| Signed policy bundles | `custody/policy/bundle.py` | docs/policy-reference.md, `custody policy sign/verify --help` |
 | Approval broker | `custody/approvals/` | this README, docs/threat-model.md |
+| Approval notifier (CLI, UI, webhook) | `custody/approvals/notifier.py` | docs/policy-reference.md, `custody serve --help` |
 | Audit log | `custody/audit/` | docs/audit-log.md |
 | Sandbox executor | `custody/sandbox/` | docs/threat-model.md |
 | Output guard | `custody/guard.py` | this README |

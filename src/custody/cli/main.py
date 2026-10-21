@@ -17,9 +17,12 @@ from custody.audit import keys as audit_keys
 from custody.audit.log import verify_sink
 from custody.catalog import Catalog
 from custody.mcp_server import ServerPaths, build_server
-from custody.policy import PolicyEngine, ToolRequest
+from custody.policy import PolicyBundleError, PolicyEngine, SignedPolicyBundle, ToolRequest
+from custody.policy import bundle_path_for as policy_bundle_path_for
 from custody.policy import check as policy_check_fn
 from custody.policy import explain as policy_explain_fn
+from custody.policy import sign_policy as policy_sign_fn
+from custody.policy import verify_policy_bundle as policy_verify_bundle_fn
 
 app = typer.Typer(
     name="custody",
@@ -131,6 +134,53 @@ def policy_explain(
     catalog = Catalog.load(catalog_file)
     request = ToolRequest(tool=tool, datasets=dataset, egress=egress, model=model)
     typer.echo(policy_explain_fn(engine, request, catalog))
+
+
+@policy_app.command("sign")
+def policy_sign(
+    file: Path,
+    key: Path = typer.Option(  # noqa: B008
+        ..., help="Ed25519 private key PEM (e.g. .custody/signing_key.pem)."
+    ),
+    out: Path | None = typer.Option(  # noqa: B008
+        None, help="Bundle output path. Defaults to <file>.sig.json."
+    ),
+) -> None:
+    """Sign a policy file, producing a bundle a reviewer can later check
+    with `custody policy verify`. Does not validate the policy's own
+    contents, run `custody policy check` first."""
+    signing_key = audit_keys.load(key)
+    bundle = policy_sign_fn(file, signing_key)
+    dest = out or policy_bundle_path_for(file)
+    dest.write_text(bundle.model_dump_json(indent=2) + "\n")
+    typer.echo(f"wrote {dest}")
+    typer.echo(f"policy sha256: {bundle.policy_sha256}")
+    typer.echo(f"signed by public key: {bundle.public_key}")
+
+
+@policy_app.command("verify")
+def policy_verify(
+    file: Path,
+    bundle: Path | None = typer.Option(  # noqa: B008
+        None, help="Bundle path. Defaults to <file>.sig.json."
+    ),
+) -> None:
+    """Check that a policy file matches a previously signed bundle and
+    the signature verifies. Exits non-zero (and prints why) if not."""
+    bundle_path = bundle or policy_bundle_path_for(file)
+    if not bundle_path.exists():
+        typer.echo(f"no signed bundle at {bundle_path}", err=True)
+        raise typer.Exit(1)
+    loaded = SignedPolicyBundle.model_validate_json(bundle_path.read_text())
+    try:
+        policy_verify_bundle_fn(file, loaded)
+    except PolicyBundleError as exc:
+        typer.echo(f"INVALID: {exc.reason}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(
+        f"OK: {file} matches the bundle signed {loaded.signed_at.isoformat()} "
+        f"by public key {loaded.public_key}"
+    )
 
 
 @approvals_app.command("list")

@@ -121,3 +121,56 @@ Prints the effective data class, the decision, which rule matched (or
 "policy default"), the reason, and (for `require_approval`) how many
 approvers of which roles it needs. Useful for checking a policy change
 against a specific request before it's live.
+
+## Signed policy bundles
+
+A policy file determines every decision in this document. Someone
+reviewed a specific `policy.yaml` and approved it; a signed bundle
+lets that approval be checked later, mechanically, instead of by a
+manual byte diff against a copy the reviewer kept themselves.
+
+```bash
+# After a compliance review, sign the exact file that was reviewed.
+custody policy sign policy.yaml --key .custody/signing_key.pem
+# wrote policy.yaml.sig.json
+# policy sha256: 3f9a...
+# signed by public key: a1c4...
+
+# Later (deploy time, CI, or an ad hoc check): confirm it still matches.
+custody policy verify policy.yaml
+# OK: policy.yaml matches the bundle signed 2026-10-21T00:00:00+00:00
+# by public key a1c4...
+```
+
+`custody policy sign` writes `<file>.sig.json` next to the policy file
+by default (`--out` to choose a different path). The bundle records
+the policy file's exact SHA-256 (over the bytes on disk, not a
+parsed/re-serialized form -- a whitespace-only edit invalidates it),
+when it was signed, and an Ed25519 signature over those two fields.
+Reuses the same signing key machinery as audit checkpoints
+(`custody.audit.keys`, see docs/audit-log.md); a deployment can share
+one key for both, or keep them separate, `custody policy sign` takes
+whatever Ed25519 PEM you point it at.
+
+`custody policy verify` fails (exit 1) if the policy file has changed
+since signing, or if the bundle's signature doesn't verify against its
+own embedded public key. It does **not** check the policy's own
+contents are sane, run `custody policy check` for that.
+
+To load a policy only when a valid bundle covers it (skip the loader
+if someone swapped in an unsigned or modified file), use
+`PolicyEngine.load_verified(path)` in place of `PolicyEngine.load(path)`
+in your own integration code. `build_gateway()` in `mcp_server.py`
+still uses plain `load()` by default in v0.1; wiring `load_verified`
+into `custody serve` itself (behind an opt-in flag) is tracked in
+ROADMAP.md.
+
+This is a different guarantee from the audit log's hash chain: that
+chain proves what happened was recorded faithfully (see
+docs/audit-log.md). A policy bundle proves what's about to happen is
+governed by a file someone actually reviewed, checked once at load
+time, not continuously, and it says nothing about files signed on a
+machine or key you don't trust, trust in the public key itself is
+still established out of band (e.g. check it into a second,
+independently-reviewed channel, or compare it to a value a compliance
+reviewer read out loud).

@@ -71,6 +71,45 @@ class TestPolicyCommands:
         assert "require_approval" in result.output
 
 
+class TestPolicySignAndVerify:
+    def test_sign_then_verify_round_trip(self, tmp_path: Path, fixtures_dir: Path) -> None:
+        import shutil
+
+        policy = tmp_path / "policy.yaml"
+        shutil.copy(fixtures_dir / "policy.yaml", policy)
+        key = tmp_path / "signing_key.pem"
+        init_result = runner.invoke(app, ["init", "--dir", str(tmp_path / "deploy")])
+        assert init_result.exit_code == 0
+        key = tmp_path / "deploy" / ".custody" / "signing_key.pem"
+
+        sign_result = runner.invoke(app, ["policy", "sign", str(policy), "--key", str(key)])
+        assert sign_result.exit_code == 0, sign_result.output
+        assert (tmp_path / "policy.yaml.sig.json").exists()
+
+        verify_result = runner.invoke(app, ["policy", "verify", str(policy)])
+        assert verify_result.exit_code == 0, verify_result.output
+        assert "OK" in verify_result.output
+
+    def test_verify_fails_without_a_bundle(self, fixtures_dir: Path) -> None:
+        result = runner.invoke(app, ["policy", "verify", str(fixtures_dir / "policy.yaml")])
+        assert result.exit_code == 1
+        assert "no signed bundle" in result.output
+
+    def test_verify_fails_after_the_file_changes(self, tmp_path: Path, fixtures_dir: Path) -> None:
+        import shutil
+
+        policy = tmp_path / "policy.yaml"
+        shutil.copy(fixtures_dir / "policy.yaml", policy)
+        runner.invoke(app, ["init", "--dir", str(tmp_path / "deploy")])
+        key = tmp_path / "deploy" / ".custody" / "signing_key.pem"
+        runner.invoke(app, ["policy", "sign", str(policy), "--key", str(key)])
+
+        policy.write_text(policy.read_text() + "\n# tampered\n")
+        result = runner.invoke(app, ["policy", "verify", str(policy)])
+        assert result.exit_code == 1
+        assert "INVALID" in result.output
+
+
 class TestApprovalsCommands:
     def test_list_and_decide_roundtrip(self, tmp_path: Path, fixtures_dir: Path) -> None:
         import shutil
