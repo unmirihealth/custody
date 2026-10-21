@@ -115,6 +115,7 @@ See docs/integrations/claude-code.md for both, with exact config.
 | Audit log | `custody/audit/` | docs/audit-log.md |
 | Evidence-pack export | `custody/evidence/` | docs/evidence-pack.md |
 | Sandbox executor | `custody/sandbox/` | docs/threat-model.md |
+| Egress allowlist proxy | `custody/sandbox/egress_proxy.py` | docs/egress-proxy.md, docs/threat-model.md T9 |
 | Output guard | `custody/guard.py` | this README |
 | Model routing | `custody/routing.py` | docs/threat-model.md |
 | Gateway | `custody/gateway.py` | this README |

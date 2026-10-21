@@ -19,9 +19,6 @@ every claim in the README stayed true on release day. Items move to
   implemented locally in v0.1; the S3 implementation itself is not)
 - Kubernetes deployment
 - Approver mobile notifications
-- A fully isolated egress allowlist proxy, if it cannot be implemented to
-  the same rigor as the rest of the sandbox in time for v0.1 (see
-  docs/threat-model.md T9)
 
 ## Built (moved here from the list above)
 
@@ -31,6 +28,10 @@ every claim in the README stayed true on release day. Items move to
 - **Evidence-pack export mapped to common control frameworks** --
   `custody evidence export`. See docs/evidence-pack.md and
   CHANGELOG.md [Unreleased].
+- **A fully isolated egress allowlist proxy** --
+  `custody.sandbox.egress_proxy`, `SandboxConfig.egress_allowlist`. See
+  docs/egress-proxy.md, docs/threat-model.md T9, and CHANGELOG.md
+  [Unreleased].
 - **Webhook approval notifications** -- this was actually v0.1's own
   stated scope (the approval broker's three channels: CLI, local web
   UI, webhook), just not built in time for the v0.1.0 release. Not a

@@ -35,6 +35,16 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   as docs/threat-model.md. Explicitly not a certification or an audit,
   every pack says so in its own `README.md` and `manifest.json`. See
   docs/evidence-pack.md.
+- `custody.sandbox.egress_proxy`: a scoped alternative to
+  `allow_egress=True`'s old plain on/off switch. Setting
+  `SandboxConfig.egress_allowlist` attaches an egress-allowed sandboxed
+  run to a Docker network created with `internal=True` (no route out
+  at all) alongside a small stdlib-only forward proxy
+  (`docker/egress_proxy_server.py`, `docker/egress-proxy.Dockerfile`)
+  that refuses to `CONNECT` or forward anywhere not on the allowlist.
+  An empty allowlist still falls back to the previous unscoped
+  behavior (documented, not silently removed). See
+  docs/egress-proxy.md and docs/threat-model.md T9.
 
 ## [0.1.0] - 2026-10-21
 

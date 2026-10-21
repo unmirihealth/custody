@@ -18,6 +18,14 @@ class SandboxConfig(BaseModel):
     pids_limit: int = Field(default=64, gt=0)
     timeout_seconds: int = Field(default=30, gt=0)
     tmpfs_size_mb: int = Field(default=64, gt=0)
+    # Hostnames (exact or fnmatch-style glob, e.g. "*.example.com") an
+    # egress-allowed run may reach. Empty means an `allow_egress=True`
+    # call falls back to the old unscoped behavior (full network
+    # access, the residual risk docs/threat-model.md T9 documents);
+    # non-empty switches to the scoped proxy in
+    # custody.sandbox.egress_proxy.
+    egress_allowlist: list[str] = Field(default_factory=list)
+    egress_proxy_image: str = "custody-egress-proxy:latest"
 
 
 class DatasetMount(BaseModel):

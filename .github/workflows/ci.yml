@@ -34,6 +34,9 @@ jobs:
       - name: Build the sandbox image
         run: docker build -f docker/sandbox.Dockerfile -t custody-sandbox:duckdb .
 
+      - name: Build the egress proxy image
+        run: docker build -f docker/egress-proxy.Dockerfile -t custody-egress-proxy:latest .
+
       - name: Lint (ruff)
         run: uv run ruff check .
 

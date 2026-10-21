@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 
 import docker  # docker/__init__.py already imports .errors, exposed as docker.errors
+from custody.sandbox.egress_proxy import EgressAllowlistProxy
 from custody.sandbox.models import DatasetMount, ExecutionResult, SandboxConfig
 
 logger = logging.getLogger("custody.sandbox")
@@ -68,13 +69,36 @@ class SandboxExecutor:
             for m in (mounts or [])
         }
 
+        # Scoped egress: allowed, with an allowlist configured, joins a
+        # dedicated no-external-route network alongside a proxy that
+        # refuses anything not on the list (docs/threat-model.md T9).
+        # Unscoped: the old on/off switch, full network access.
+        egress_proxy: EgressAllowlistProxy | None = None
+        network_name: str | None = None
+        network_disabled = not allow_egress
+        environment: dict[str, str] = {}
+        if allow_egress and self._config.egress_allowlist:
+            egress_proxy = EgressAllowlistProxy(
+                self._client, self._config.egress_allowlist, image=self._config.egress_proxy_image
+            )
+            handle = egress_proxy.start()
+            network_name = handle.network_name
+            network_disabled = False
+            environment = {
+                "HTTP_PROXY": handle.proxy_url,
+                "HTTPS_PROXY": handle.proxy_url,
+                "http_proxy": handle.proxy_url,
+                "https_proxy": handle.proxy_url,
+            }
+
         try:
             container = self._client.containers.run(
                 image or self._config.image,
                 command,
                 detach=True,
                 user="65534:65534",  # nobody:nobody; non-root unconditionally
-                network_disabled=not allow_egress,
+                network=network_name,
+                network_disabled=network_disabled,
                 read_only=True,
                 # This is the CONTAINER's mount point, not a host path:
                 # ruff's S108 flags bare "/tmp" as an insecure host temp
@@ -87,10 +111,13 @@ class SandboxExecutor:
                 nano_cpus=int(self._config.cpu_limit * 1_000_000_000),
                 pids_limit=self._config.pids_limit,
                 volumes=volumes,
+                environment=environment,
                 stdout=True,
                 stderr=True,
             )
         except (docker.errors.APIError, docker.errors.ImageNotFound) as exc:
+            if egress_proxy is not None:
+                egress_proxy.stop()
             return ExecutionResult(
                 exit_code=None,
                 stdout="",
@@ -122,6 +149,9 @@ class SandboxExecutor:
             container.remove(force=True)
         except Exception as remove_exc:  # noqa: BLE001 - best-effort cleanup
             logger.debug("sandbox: container removal failed: %s", remove_exc)
+
+        if egress_proxy is not None:
+            egress_proxy.stop()
 
         return ExecutionResult(
             exit_code=exit_code,
