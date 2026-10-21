@@ -1,0 +1,7 @@
+principals:
+  - id: jane_steward
+    roles: [data_steward]
+  - id: priya_privacy
+    roles: [privacy_officer]
+  - id: sam_both
+    roles: [data_steward, privacy_officer]
