@@ -25,7 +25,7 @@ from custody.approvals import DEFAULT_POLL_INTERVAL, ApprovalBroker, ApprovalSta
 from custody.approvals.notifier import ApprovalNotifier, NullNotifier
 from custody.audit import AuditLog, EventType
 from custody.catalog import Catalog, DataClass
-from custody.policy import Decision, PolicyEngine, PolicyResult, ToolRequest
+from custody.policy import Decision, PolicyBackend, PolicyResult, ToolRequest
 from custody.routing import ModelRouter
 
 
@@ -43,7 +43,7 @@ class Gateway:
     def __init__(
         self,
         *,
-        policy: PolicyEngine,
+        policy: PolicyBackend,
         catalog: Catalog,
         audit: AuditLog,
         approvals: ApprovalBroker,

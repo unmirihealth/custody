@@ -40,6 +40,12 @@ jobs:
       - name: Pull the LocalStack image (used by the S3 Object Lock sink tests)
         run: docker pull localstack/localstack:3.0
 
+      - name: Build the OPA policy backend image
+        run: docker build -f docker/opa.Dockerfile -t custody-opa:latest .
+
+      - name: Test the Rego policy module itself (opa test)
+        run: docker run --rm -v "$PWD/docker/opa:/policies" openpolicyagent/opa:latest-static test /policies
+
       - name: Lint (ruff)
         run: uv run ruff check .
 

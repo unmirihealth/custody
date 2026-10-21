@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import fnmatch
 from pathlib import Path
+from typing import Protocol
 
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -54,6 +55,75 @@ class RoutingDecision(BaseModel):
     model: str
     matched_pattern: str | None
     reason: str
+
+
+class PolicyBackend(Protocol):
+    """The two methods `Gateway` and `ModelRouter` actually call on
+    "the policy engine" (`custody/gateway.py`, `custody/routing.py`).
+    `PolicyEngine` below satisfies this by definition; so does
+    `custody.policy.opa_backend.OPAPolicyEngine` (structurally, no
+    inheritance needed) -- that is the whole point of this Protocol
+    existing: `Gateway(policy=..., ...)` accepts either without caring
+    which one it got.
+    """
+
+    def evaluate(self, request: ToolRequest, catalog: Catalog) -> PolicyResult: ...
+    def check_model(self, data_class: DataClass, model: str) -> RoutingDecision: ...
+
+
+def effective_data_class(request: ToolRequest, catalog: Catalog) -> DataClass:
+    """The request's effective (most restrictive) data class. A free
+    function, not a `PolicyEngine` method: `custody.policy.opa_backend
+    .OPAPolicyEngine` needs the exact same computation (classifying a
+    request is catalog-driven, not policy-backend-driven) without
+    depending on a local `PolicyEngine` instance.
+    """
+    if not request.datasets:
+        # No dataset named at all: deny-by-default treats this the
+        # same as touching the most restrictive class, not the least.
+        # A rule that should apply regardless of data class
+        # (catalog.list, approvals.status) constrains on `tool` alone
+        # and never looks at this value.
+        return DataClass.identified
+    return max(catalog.classify(d) for d in request.datasets)
+
+
+def check_model_allowlist(policy: Policy, data_class: DataClass, model: str) -> RoutingDecision:
+    """Is `model` allowed to see a request of this data class. A free
+    function for the same reason as `effective_data_class`: model
+    routing is a simple, fast allowlist lookup, not a rule-matching
+    decision, so both `PolicyEngine` and `OPAPolicyEngine` share this
+    one implementation rather than one of them re-deriving it, or
+    routing it through OPA for no real benefit (see
+    docs/opa-policy-backend.md for why that scoping choice was made).
+
+    A data class with no entry in `model_allowlist` denies every
+    model, not just unlisted ones: an allowlist that never mentions
+    `identified` is not "no restriction for identified", it is "no
+    model is on the identified allowlist yet". Same deny-by-default
+    posture as everything else in this module.
+    """
+    patterns = policy.model_allowlist.get(data_class, [])
+    for pattern in patterns:
+        if fnmatch.fnmatchcase(model, pattern):
+            return RoutingDecision(
+                allowed=True,
+                data_class=data_class,
+                model=model,
+                matched_pattern=pattern,
+                reason=f"model {model!r} matched allowlist pattern {pattern!r} for {data_class}",
+            )
+    return RoutingDecision(
+        allowed=False,
+        data_class=data_class,
+        model=model,
+        matched_pattern=None,
+        reason=(
+            f"model {model!r} is not on the model_allowlist for {data_class}"
+            if patterns
+            else f"no model_allowlist is configured for {data_class}; deny by default"
+        ),
+    )
 
 
 def _when_matches(rule: Rule, request: ToolRequest, data_class: DataClass) -> bool:
@@ -109,18 +179,8 @@ class PolicyEngine:
     def policy(self) -> Policy:
         return self._policy
 
-    def _effective_data_class(self, request: ToolRequest, catalog: Catalog) -> DataClass:
-        if not request.datasets:
-            # No dataset named at all: deny-by-default treats this the
-            # same as touching the most restrictive class, not the
-            # least. A rule that should apply regardless of data class
-            # (catalog.list, approvals.status) constrains on `tool`
-            # alone and never looks at this value.
-            return DataClass.identified
-        return max(catalog.classify(d) for d in request.datasets)
-
     def evaluate(self, request: ToolRequest, catalog: Catalog) -> PolicyResult:
-        data_class = self._effective_data_class(request, catalog)
+        data_class = effective_data_class(request, catalog)
 
         for rule in self._policy.rules:
             if _when_matches(rule, request, data_class):
@@ -140,38 +200,10 @@ class PolicyEngine:
         )
 
     def check_model(self, data_class: DataClass, model: str) -> RoutingDecision:
-        """Is `model` allowed to see a request of this data class.
-
-        A data class with no entry in `model_allowlist` denies every
-        model, not just unlisted ones: an allowlist that never mentions
-        `identified` is not "no restriction for identified", it is "no
-        model is on the identified allowlist yet". This is the same
-        deny-by-default posture as everything else in this module.
-        """
-        patterns = self._policy.model_allowlist.get(data_class, [])
-        for pattern in patterns:
-            if fnmatch.fnmatchcase(model, pattern):
-                return RoutingDecision(
-                    allowed=True,
-                    data_class=data_class,
-                    model=model,
-                    matched_pattern=pattern,
-                    reason=(
-                        f"model {model!r} matched allowlist pattern "
-                        f"{pattern!r} for {data_class}"
-                    ),
-                )
-        return RoutingDecision(
-            allowed=False,
-            data_class=data_class,
-            model=model,
-            matched_pattern=None,
-            reason=(
-                f"model {model!r} is not on the model_allowlist for {data_class}"
-                if patterns
-                else f"no model_allowlist is configured for {data_class}; deny by default"
-            ),
-        )
+        """Is `model` allowed to see a request of this data class. See
+        the free function `check_model_allowlist` above, which this
+        just delegates to, for the actual logic and its rationale."""
+        return check_model_allowlist(self._policy, data_class, model)
 
 
 def explain(engine: PolicyEngine, request: ToolRequest, catalog: Catalog) -> str:

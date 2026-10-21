@@ -5,7 +5,8 @@ every claim in the README stayed true on release day. Items move to
 "Built" below as they land; see CHANGELOG.md for exact detail on each.
 
 - SSO/OIDC approver identity (v0.1 uses a local `principals.yaml`)
-- OPA/Cedar policy backends (v0.1 is YAML + Pydantic only)
+- Cedar policy backend (OPA is built, see Built below; policy.yaml plus
+  the default `PolicyEngine` remains the baseline either way)
 - FHIR and OMOP connectors
 - ~~gVisor/Firecracker sandbox options~~ **will not be built on this
   project's current macOS development machine.** Both require a Linux
@@ -26,6 +27,11 @@ every claim in the README stayed true on release day. Items move to
 - **Evidence-pack export mapped to common control frameworks** --
   `custody evidence export`. See docs/evidence-pack.md and
   CHANGELOG.md [Unreleased].
+- **OPA policy backend** -- `custody.policy.opa_backend.OPAPolicyEngine`,
+  evaluating the same `policy.yaml` through a real OPA server instead
+  of in-process. Verified against a real OPA container, plus the Rego
+  module's own `opa test` suite. Cedar remains deferred above. See
+  docs/opa-policy-backend.md and CHANGELOG.md [Unreleased].
 - **S3 Object Lock audit sink** -- `custody.audit.s3_sink
   .S3ObjectLockSink`. Verified against real LocalStack for
   read/write/list/ordering correctness; the retention guarantee itself

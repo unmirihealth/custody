@@ -122,6 +122,15 @@ Prints the effective data class, the decision, which rule matched (or
 approvers of which roles it needs. Useful for checking a policy change
 against a specific request before it's live.
 
+## Alternative backend: OPA
+
+Everything above describes `custody.policy.PolicyEngine`'s evaluation,
+the default. `custody.policy.opa_backend.OPAPolicyEngine` evaluates the
+exact same `policy.yaml` (same loader, same Pydantic validation, same
+first-match-wins semantics) by querying a real OPA server instead of
+evaluating rules in this process. See docs/opa-policy-backend.md for
+when you'd want that and how to wire it into a `Gateway`.
+
 ## Signed policy bundles
 
 A policy file determines every decision in this document. Someone

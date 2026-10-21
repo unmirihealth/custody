@@ -56,6 +56,26 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   environment, LocalStack's free Community edition accepts Object Lock
   parameters but does not enforce them, a known gap documented in
   docs/s3-object-lock-sink.md alongside what IS verified.
+- `custody.policy.opa_backend.OPAPolicyEngine`: an alternative to the
+  local YAML/Pydantic `PolicyEngine` that evaluates the same
+  `policy.yaml` by querying a real OPA (Open Policy Agent) server. A
+  small, fixed Rego module (`docker/opa/policy.rego`, its own test
+  suite via `opa test`, run in CI) reproduces `PolicyEngine`'s exact
+  first-match-wins algorithm against policy data pushed at runtime;
+  policy authoring stays in YAML, nothing about docs/policy-reference
+  .md changes. Structurally satisfies the new `custody.policy
+  .PolicyBackend` Protocol, so it is a genuine drop-in for
+  `Gateway(policy=...)` -- confirmed by a test building a real Gateway
+  with it in place of the local engine. Model routing
+  (`check_model()`) stays plain Python either way, shared by both
+  backends via the new `check_model_allowlist` free function; routing
+  it through a network call added no real benefit. Only the OPA half
+  of ROADMAP.md's "OPA/Cedar policy backends" item: Cedar remains
+  unbuilt. See docs/opa-policy-backend.md.
+- Refactored `custody.policy.engine`: `effective_data_class` and
+  `check_model_allowlist` are now free functions (previously private
+  `PolicyEngine` methods), reused by `OPAPolicyEngine`. No behavior
+  change for `PolicyEngine` itself.
 
 ## [0.1.0] - 2026-10-21
 

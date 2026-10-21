@@ -110,6 +110,7 @@ See docs/integrations/claude-code.md for both, with exact config.
 | Data catalog | `custody/catalog.py` | this README |
 | Policy engine | `custody/policy/` | docs/policy-reference.md |
 | Signed policy bundles | `custody/policy/bundle.py` | docs/policy-reference.md, `custody policy sign/verify --help` |
+| OPA policy backend (optional, same policy.yaml) | `custody/policy/opa_backend.py` | docs/opa-policy-backend.md |
 | Approval broker | `custody/approvals/` | this README, docs/threat-model.md |
 | Approval notifier (CLI, UI, webhook) | `custody/approvals/notifier.py` | docs/policy-reference.md, `custody serve --help` |
 | Audit log | `custody/audit/` | docs/audit-log.md |
