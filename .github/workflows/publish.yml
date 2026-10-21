@@ -1,0 +1,62 @@
+name: Publish to PyPI
+
+# Trusted Publishing (PyPI's OIDC-based mechanism): no API token is
+# generated, stored, or rotated anywhere. PyPI verifies this exact
+# workflow (repo + workflow filename + environment) against a "pending
+# publisher" configured once on pypi.org, under the account's own
+# Publishing settings. See docs/releasing.md for the one-time setup
+# and the release checklist this workflow is triggered by.
+#
+# Triggered by publishing a GitHub Release, the same release/tag flow
+# already used for v0.1.0: tag, push the tag, `gh release create`.
+# `workflow_dispatch` is for re-running a publish against an existing
+# release (e.g. the build job failed) without creating a new one.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Verify the built wheel actually imports
+        run: |
+          whl=$(ls dist/*.whl)
+          uv run --with "$whl" --no-project python3 -c "import custody; print('import OK')"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Must match the environment name configured in the PyPI pending
+    # publisher exactly (docs/releasing.md).
+    environment:
+      name: pypi
+      url: https://pypi.org/project/custody-mcp/
+    permissions:
+      id-token: write # required for Trusted Publishing; nothing else is needed
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

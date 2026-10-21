@@ -138,6 +138,7 @@ See docs/integrations/claude-code.md for both, with exact config.
 | CLI | `custody/cli/` | `custody --help` |
 | Local approvals UI | `custody/approvals_ui.py` | this README |
 | Claude Code hook | `custody/hooks/claude_code.py` | docs/integrations/claude-code.md |
+| PyPI release workflow (Trusted Publishing) | `.github/workflows/publish.yml` | docs/releasing.md |
 
 ## Synthetic data only
 

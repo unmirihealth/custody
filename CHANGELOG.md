@@ -6,6 +6,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `.github/workflows/publish.yml`: publishes `custody-mcp` to PyPI via
+  Trusted Publishing (OIDC), triggered by a GitHub Release, no API
+  token stored anywhere. Builds with `uv build`, verifies the built
+  wheel actually imports before anything reaches PyPI, then publishes
+  via `pypa/gh-action-pypi-publish`. See docs/releasing.md for the
+  one-time PyPI-side setup and the release checklist. Not yet
+  published as of this entry; the README's `pip install` line will
+  change the day it is.
 - `custody.approvals.notifier`: `WebhookNotifier`, the third approval
   channel named in v0.1's own design (CLI, local web UI, webhook) but
   not actually built for the initial release. Posts a Slack-compatible
