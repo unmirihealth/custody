@@ -21,6 +21,14 @@ rules:
     decision: require_approval
     approvals: { count: 2, roles: [data_steward, privacy_officer] }
 
+  - id: shell-run-ok
+    when: { tool: shell.run, max_data_class: deidentified }
+    decision: allow
+
+  - id: files-write-ok
+    when: { tool: files.write }
+    decision: allow
+
 default: deny
 
 model_allowlist:

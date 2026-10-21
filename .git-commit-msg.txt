@@ -1,34 +1,35 @@
-feat(gateway): the orchestration layer tying policy, approvals, and audit together
+feat(tools): the six built-in MCP tools
 
-Gateway.authorize() is the README's seven-step flow minus execution
-and output-guarding, which custody/tools/* (next) will call after
-authorize() clears a request, writing their own execution/result audit
-entries once real work has actually happened. Every step writes an
-audit entry first: request, decision, and (when the policy requires
-it) two approval entries, requested and resolved.
+catalog.list, sql.query, shell.run, files.write, files.export,
+approvals.status -- each a plain function taking a ToolContext, each
+calling Gateway.authorize before doing anything (except
+approvals.status, which is read-only introspection on an approval id
+the agent already holds, see that module's docstring for why it's the
+one exception).
 
-Model routing runs independently of the tool/data policy decision and
-short-circuits to deny before any approval wait begins if the declared
-model isn't on the data class's allowlist, an identified-data query
-that would otherwise need a human's approval never bothers anyone if
-the model routing alone already kills it.
+sql.query runs DuckDB inside the sandbox against docker/sandbox.Dockerfile
+(python:3.12-alpine + duckdb, built locally as custody-sandbox:duckdb,
+see docs/demo.md for the build step). A blunt SELECT/WITH-only
+allow-list rejects writes and statement chaining before anything
+reaches the sandbox; the real security boundary is still the sandbox
+itself (read-only mount, no network, ephemeral container), not this
+check. A GROUP BY result (every row carrying an integer "count"
+column) goes through OutputGuard before it reaches the caller; any
+other shape passes through, row-level access to identified data is
+already gated by the approval flow upstream.
 
-require_approval is guarded with a real runtime check, not a bare
-assert, since Policy's own validation guarantee (approvals is always
-set when decision is require_approval) lives in a different module and
-assert statements vanish under python -O.
+Added SandboxExecutor.run(image=...) to override the configured image
+per call, so sql.query doesn't need a second executor just to point at
+a different image than shell.run's.
 
-Integration tests wire real Catalog, PolicyEngine, AuditLog, and
-ApprovalBroker instances together (no mocks) against the existing
-fixtures. The approval-flow tests inject the broker's poll-wait
-`sleep` callback to decide the approval synchronously on the first
-poll instead of actually waiting, the same pattern already proven in
-test_approvals.py, after an earlier version of these tests used
-background threads and could hang indefinitely (a no-op injected sleep
-paired with a dataset that actually needed approval span the wait loop
-for its full default timeout). Added Gateway.close() /
-ApprovalBroker.close() so tests (and any future long-running caller)
-can release the approvals SQLite connection cleanly.
+files.write/files.export resolve every path against the workspace
+directory and reject anything that would escape it (../../etc/passwd
+style), tested directly.
 
-95-100% coverage on the new code. ruff and mypy --strict clean across
-all 25 source files.
+Also cleaned up a redundant import in sandbox/executor.py while
+chasing ruff's import sorting: docker.errors doesn't need a separate
+explicit import, docker/__init__.py already exposes it as
+docker.errors.
+
+96% coverage. ruff and mypy --strict clean across all 32 source files.
+156 tests passing total.

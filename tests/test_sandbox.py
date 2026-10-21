@@ -132,3 +132,10 @@ class TestRealSandbox:
         result = executor.run(["sleep", "10"])
         assert result.timed_out is True
         assert result.exit_code is None
+
+    def test_image_override_takes_precedence_over_config(self) -> None:
+        executor = SandboxExecutor(SandboxConfig(image="alpine:3.20"))
+        result = executor.run(["python3", "--version"], image="custody-sandbox:duckdb")
+        assert result.denied is False
+        assert result.exit_code == 0
+        assert "Python" in result.stdout

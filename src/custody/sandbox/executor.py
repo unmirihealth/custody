@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import logging
 
-import docker
-import docker.errors
-
+import docker  # docker/__init__.py already imports .errors, exposed as docker.errors
 from custody.sandbox.models import DatasetMount, ExecutionResult, SandboxConfig
 
 logger = logging.getLogger("custody.sandbox")
@@ -49,7 +47,12 @@ class SandboxExecutor:
         mounts: list[DatasetMount] | None = None,
         *,
         allow_egress: bool = False,
+        image: str | None = None,
     ) -> ExecutionResult:
+        """`image`, when given, overrides `SandboxConfig.image` for just
+        this call -- a tool that needs a specific toolchain (DuckDB for
+        sql.query, say) doesn't need a whole second SandboxExecutor just
+        to point at a different image."""
         if self._client is None:
             return ExecutionResult(
                 exit_code=None,
@@ -67,7 +70,7 @@ class SandboxExecutor:
 
         try:
             container = self._client.containers.run(
-                self._config.image,
+                image or self._config.image,
                 command,
                 detach=True,
                 user="65534:65534",  # nobody:nobody; non-root unconditionally
