@@ -5,6 +5,19 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.1.0] - 2026-10-21
 
+### Fixed
+- `custody.approvals.store.ApprovalStore`: a shared SQLite connection
+  accessed from more than one thread without a lock could produce a
+  torn read under real concurrency (`check_same_thread=False` permits
+  multi-threaded use, it does not make it safe). Found by CI on Python
+  3.13 specifically, not locally. Every store method now holds an
+  internal lock for its full duration.
+- `custody.cli`'s GitHub Actions matrix: `setup-uv`'s `python-version`
+  input doesn't exist and was silently ignored, so both matrix legs
+  were quietly testing against the same Python instead of 3.12 and
+  3.13 separately -- which is exactly how the bug above went
+  undetected until the matrix was fixed to actually test both.
+
 ### Added
 - Project skeleton, threat model (docs/threat-model.md), Apache 2.0
   licensing matching `unmiri-ngs-fhir-schema`.
