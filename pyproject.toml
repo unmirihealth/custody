@@ -34,6 +34,7 @@ Issues = "https://github.com/unmirihealth/custody/issues"
 
 [project.scripts]
 custody = "custody.cli.main:app"
+custody-claude-code-hook = "custody.hooks.claude_code:main"
 
 [project.optional-dependencies]
 dev = [
