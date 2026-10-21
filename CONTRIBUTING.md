@@ -23,10 +23,18 @@ this project's license.
 
 ```bash
 uv sync --extra dev
+docker build -f docker/sandbox.Dockerfile -t custody-sandbox:duckdb .
 uv run pytest
 uv run ruff check .
 uv run mypy src/custody
 ```
+
+The sandbox image build is required before the Docker-dependent tests
+(marked `@requires_docker`, mostly `sql.query` and `shell.run`
+coverage) will pass, not just before a Docker daemon exists. Those
+tests check daemon reachability and skip cleanly when none is
+available at all, but a daemon that's up without that image built will
+fail with "image not found," not a clean skip, build it first.
 
 ## Where things live
 

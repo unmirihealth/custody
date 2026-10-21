@@ -1,0 +1,33 @@
+name: Design partner interest
+description: Your oncology data, research informatics, or compliance team wants to use agents but hasn't been able to get approval.
+labels: ["design-partner"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We're looking for a small number of design partners. **Do not
+        include real patient data, institution-identifying case
+        details, or anything confidential in this public issue** --
+        this is a public repository. If you'd rather not discuss any
+        of this in public, email hello@unmiri.com instead.
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: What workflow would you automate first
+      description: What's the agent task you want, and what's stopping you today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reviewers
+    attributes:
+      label: What would your reviewers need to see
+      description: What would your privacy/compliance team need from a tool like this before they'd approve it?
+    validations:
+      required: true
+
+  - type: input
+    id: contact
+    attributes:
+      label: Contact (optional, if you'd rather not use GitHub notifications)

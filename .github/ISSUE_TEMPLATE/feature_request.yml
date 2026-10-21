@@ -1,0 +1,22 @@
+name: Feature request
+description: Something you'd want Custody to do that it doesn't yet.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check ROADMAP.md first, your idea may already be listed as a
+        known gap. **Do not include real patient data in this report.**
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What workflow or control gap is this for
+      description: What are you trying to do that Custody doesn't support today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach (optional)

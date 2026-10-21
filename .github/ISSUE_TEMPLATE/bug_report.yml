@@ -1,0 +1,40 @@
+name: Bug report
+description: Something in Custody isn't working the way the docs say it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not include real patient data in this report, in any form**,
+        not even a reproduction example. Use synthetic data (see
+        CONTRIBUTING.md) or describe the issue without a concrete
+        dataset.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what actually happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps, ideally against `custody demo`'s synthetic data.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Custody version / commit
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, Docker version.

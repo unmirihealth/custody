@@ -14,41 +14,69 @@ Custody Gateway
    2. Classify request (tool, datasets, data class, egress, model target)
    3. Policy engine  -> allow | deny | require_approval
    4. Approval broker -> wait for human decision (timeout = deny)
-   5. Executor       -> sandboxed container or proxied downstream MCP server
+   5. Executor       -> sandboxed container
    6. Output guard   -> redact/summarize results by data class
    7. Audit log      -> hash-chained entry at every step
    |
    v
-Downstream tools: shell, SQL over local datasets, file read/write, other MCP servers
+Custody's own tools: catalog.list, sql.query, shell.run, files.write,
+files.export, approvals.status
 ```
 
-Status: v0.1 is under active development. The components and CLI listed
-below are a planned surface, each currently raises `NotImplementedError`
-until it is built; this README will stop saying that once it is true.
-Track progress in CHANGELOG.md.
+Status: v0.1, functionally complete and tested (196 tests, 96%
+coverage on `src/custody`, `ruff` and `mypy --strict` clean). Not yet
+tagged or published; see CHANGELOG.md for what shipped in which
+commit. One scope note: the architecture above describes a gateway
+that can also proxy a downstream MCP server's tools, that proxying is
+**not implemented** in v0.1, every tool call this release handles goes
+through one of the six built-ins listed above (see
+`custody/mcp_server.py`'s module docstring).
 
-## Quickstart (target: under 5 minutes to the demo)
+## Quickstart (under 5 minutes to the demo, Docker required)
+
+From a clone of this repository (not yet published to PyPI):
 
 ```bash
-pip install custody-mcp
-custody init
-custody demo
+git clone <this repo>
+cd custody
+uv sync --extra dev
+docker build -f docker/sandbox.Dockerfile -t custody-sandbox:duckdb .
+uv run custody demo
 ```
 
-`custody demo` generates a synthetic oncology dataset with a fixed seed,
-ships a sample policy, and walks through: an allowed catalog listing, an
-allowed de-identified cohort query, an identified-table query held for
-approval, a denied two-person export, a denied network call from the
-sandbox, and `custody audit verify` catching a deliberately tampered log
-entry. See docs/demo.md.
+`custody demo` generates a synthetic oncology dataset with a fixed
+seed, writes a sample policy/catalog/principals to disk, and walks
+through: an allowed catalog listing, a de-identified cohort query
+(not small-cell suppressed, that only applies at `limited_data_set`
+and above), the same cohort breakdown re-run on identified data (held
+for approval, then approved, this time suppressed), a two-person
+export denied by one of the two required approvers, a blocked network
+call from the sandbox, and `custody audit verify` catching a
+deliberately tampered log entry. See docs/demo.md for a narrated
+walkthrough of the output.
+
+Once initialized (`custody init` in an empty directory, or after
+`custody demo`), run `custody serve --principal <your-agent-id>` to
+start the real MCP gateway (stdio), or `custody ui` for the local
+approvals web UI.
 
 ## Using it with Claude Code
 
-Two integration modes: Custody as an MCP server (the primary path, see
-`examples/` for a Claude Code MCP config snippet), or a `PreToolUse` hook
-adapter that routes Claude Code's native tool calls (Bash, Write, Edit,
-WebFetch) through the same policy engine and audit log. See
-docs/integrations/claude-code.md.
+Two integration modes:
+
+- **MCP gateway (primary).** Custody runs as an MCP server
+  (`custody serve`) exposing its six tools. See
+  `examples/claude-code-mcp-config.json` for the config snippet.
+- **`PreToolUse` hook adapter (secondary).** Routes Claude Code's own
+  native tool calls (Bash, Write, Edit, WebFetch) through the same
+  policy engine and audit log, as `claude_code.bash` /
+  `claude_code.write` / `claude_code.edit` / `claude_code.web_fetch`
+  in your policy. A `require_approval` decision here doesn't block the
+  hook (a `PreToolUse` hook has roughly 30 seconds, Custody's default
+  approval timeout is 15 minutes); it records the pending approval and
+  returns Claude Code's own `"ask"` decision instead.
+
+See docs/integrations/claude-code.md for both, with exact config.
 
 ## What Custody is not
 
@@ -63,6 +91,26 @@ docs/integrations/claude-code.md.
 - **Not a perfect sandbox.** Docker isolation is one layer in a
   defense-in-depth design, not the whole design. See docs/threat-model.md
   for exactly what v0.1 defends against and what it does not.
+- **Not SSO-backed.** Approver identity in v0.1 comes from a local
+  `principals.yaml`, see ROADMAP.md.
+
+## Components
+
+| Component | Module | Docs |
+|---|---|---|
+| Data catalog | `custody/catalog.py` | this README |
+| Policy engine | `custody/policy/` | docs/policy-reference.md |
+| Approval broker | `custody/approvals/` | this README, docs/threat-model.md |
+| Audit log | `custody/audit/` | docs/audit-log.md |
+| Sandbox executor | `custody/sandbox/` | docs/threat-model.md |
+| Output guard | `custody/guard.py` | this README |
+| Model routing | `custody/routing.py` | docs/threat-model.md |
+| Gateway | `custody/gateway.py` | this README |
+| Built-in tools | `custody/tools/` | this README |
+| MCP server | `custody/mcp_server.py` | docs/integrations/claude-code.md |
+| CLI | `custody/cli/` | `custody --help` |
+| Local approvals UI | `custody/approvals_ui.py` | this README |
+| Claude Code hook | `custody/hooks/claude_code.py` | docs/integrations/claude-code.md |
 
 ## Synthetic data only
 

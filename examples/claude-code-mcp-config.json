@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "custody": {
+      "command": "custody",
+      "args": [
+        "serve",
+        "--dir",
+        "/absolute/path/to/your/custody/deployment",
+        "--principal",
+        "claude-code"
+      ]
+    }
+  }
+}

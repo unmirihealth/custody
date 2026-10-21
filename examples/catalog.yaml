@@ -1,0 +1,19 @@
+# Example catalog. Paths are relative to this file's own directory
+# (Catalog.load resolves them that way), not to wherever `custody` is
+# invoked from. Replace with your own datasets; an id not listed here
+# classifies as "identified", the most restrictive class, see
+# docs/policy-reference.md.
+
+datasets:
+  - id: tumor_registry_deidentified
+    path: data/tumor_registry_deidentified.synthetic.csv
+    format: csv
+    data_class: deidentified
+
+  - id: tumor_registry_identified
+    path: data/tumor_registry_identified.synthetic.csv
+    format: csv
+    data_class: identified
+    columns:
+      mrn: direct_identifier
+      patient_name: direct_identifier

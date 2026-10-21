@@ -1,0 +1,11 @@
+# Example approver directory. No SSO in v0.1 (ROADMAP.md): an
+# approver's identity is whatever string they identify themselves with
+# on the CLI or the local web UI, and their roles are exactly what this
+# file says. Replace with your real approvers before using this outside
+# a demo.
+
+principals:
+  - id: jane_steward
+    roles: [data_steward]
+  - id: priya_privacy
+    roles: [privacy_officer]
