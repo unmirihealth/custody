@@ -17,11 +17,19 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
-        with:
-          python-version: ${{ matrix.python-version }}
+        # setup-uv's own inputs don't include python-version (it only
+        # installs uv itself); the matrix Python is pinned below via
+        # `uv python install` + `uv sync --python`, not here. An earlier
+        # version of this workflow passed python-version to this step,
+        # which setup-uv silently ignored, so both matrix legs were
+        # quietly running against whatever Python uv picked by default
+        # instead of actually testing 3.12 and 3.13 separately.
+
+      - name: Install the matrix Python version
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --extra dev --python ${{ matrix.python-version }}
 
       - name: Build the sandbox image
         run: docker build -f docker/sandbox.Dockerfile -t custody-sandbox:duckdb .
