@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -54,90 +55,110 @@ class ApprovalNotFoundError(Exception):
 
 
 class ApprovalStore:
+    """`check_same_thread=False` lets more than one thread use this
+    connection at all, it does NOT make concurrent use of it safe:
+    Python's sqlite3 connections are not internally synchronized, two
+    threads calling `execute()` at the same moment can corrupt each
+    other's cursor state. Found in CI (not locally) as an intermittent
+    `sqlite3.InterfaceError` / a row read back with an empty-string
+    `created_at`, exactly the signature of a torn read racing a write.
+    Every method here holds `self._lock` for its full duration, callers
+    (the gateway thread and, in the demo, a background decider thread)
+    never need to know this store is shared.
+    """
+
     def __init__(self, db_path: Path) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
     def create(self, approval: PendingApproval) -> None:
-        self._conn.execute(
-            "INSERT INTO approvals "
-            "(id, requester, rule_id, summary_json, required_count, "
-            " required_roles_json, created_at, expires_at, status) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                approval.id,
-                approval.requester,
-                approval.rule_id,
-                approval.summary.model_dump_json(),
-                approval.required_count,
-                json.dumps(approval.required_roles),
-                approval.created_at.isoformat(),
-                approval.expires_at.isoformat(),
-                approval.status.value,
-            ),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO approvals "
+                "(id, requester, rule_id, summary_json, required_count, "
+                " required_roles_json, created_at, expires_at, status) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    approval.id,
+                    approval.requester,
+                    approval.rule_id,
+                    approval.summary.model_dump_json(),
+                    approval.required_count,
+                    json.dumps(approval.required_roles),
+                    approval.created_at.isoformat(),
+                    approval.expires_at.isoformat(),
+                    approval.status.value,
+                ),
+            )
+            self._conn.commit()
 
     def get(self, approval_id: str) -> PendingApproval | None:
-        row = self._conn.execute(
-            "SELECT id, requester, rule_id, summary_json, required_count, "
-            "required_roles_json, created_at, expires_at, status "
-            "FROM approvals WHERE id = ?",
-            (approval_id,),
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, requester, rule_id, summary_json, required_count, "
+                "required_roles_json, created_at, expires_at, status "
+                "FROM approvals WHERE id = ?",
+                (approval_id,),
+            ).fetchone()
         if row is None:
             return None
         return _row_to_approval(row)
 
     def list_pending(self) -> list[PendingApproval]:
-        rows = self._conn.execute(
-            "SELECT id, requester, rule_id, summary_json, required_count, "
-            "required_roles_json, created_at, expires_at, status "
-            "FROM approvals WHERE status = ? ORDER BY created_at",
-            (ApprovalStatus.pending.value,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, requester, rule_id, summary_json, required_count, "
+                "required_roles_json, created_at, expires_at, status "
+                "FROM approvals WHERE status = ? ORDER BY created_at",
+                (ApprovalStatus.pending.value,),
+            ).fetchall()
         return [_row_to_approval(r) for r in rows]
 
     def set_status(self, approval_id: str, status: ApprovalStatus) -> None:
-        self._conn.execute(
-            "UPDATE approvals SET status = ? WHERE id = ?",
-            (status.value, approval_id),
-        )
-        self._conn.commit()
-
-    def add_decision(self, decision: ApprovalDecision) -> None:
-        try:
+        with self._lock:
             self._conn.execute(
-                "INSERT INTO approval_decisions "
-                "(approval_id, approver, approve, reason, decided_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (
-                    decision.approval_id,
-                    decision.approver,
-                    int(decision.approve),
-                    decision.reason,
-                    decision.decided_at.isoformat(),
-                ),
+                "UPDATE approvals SET status = ? WHERE id = ?",
+                (status.value, approval_id),
             )
             self._conn.commit()
-        except sqlite3.IntegrityError as exc:
-            raise DuplicateApproverError(
-                f"{decision.approver!r} already decided on approval "
-                f"{decision.approval_id!r}"
-            ) from exc
+
+    def add_decision(self, decision: ApprovalDecision) -> None:
+        with self._lock:
+            try:
+                self._conn.execute(
+                    "INSERT INTO approval_decisions "
+                    "(approval_id, approver, approve, reason, decided_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        decision.approval_id,
+                        decision.approver,
+                        int(decision.approve),
+                        decision.reason,
+                        decision.decided_at.isoformat(),
+                    ),
+                )
+                self._conn.commit()
+            except sqlite3.IntegrityError as exc:
+                raise DuplicateApproverError(
+                    f"{decision.approver!r} already decided on approval "
+                    f"{decision.approval_id!r}"
+                ) from exc
 
     def list_decisions(self, approval_id: str) -> list[ApprovalDecision]:
-        rows = self._conn.execute(
-            "SELECT approval_id, approver, approve, reason, decided_at "
-            "FROM approval_decisions WHERE approval_id = ? ORDER BY decided_at",
-            (approval_id,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT approval_id, approver, approve, reason, decided_at "
+                "FROM approval_decisions WHERE approval_id = ? ORDER BY decided_at",
+                (approval_id,),
+            ).fetchall()
         return [
             ApprovalDecision(
                 approval_id=r[0],

@@ -318,3 +318,75 @@ class TestWait:
         assert status == ApprovalStatus.pending  # caller's wait budget ran out
         # The approval itself is still live, only the caller's own wait gave up.
         assert broker.get(approval.id).status == ApprovalStatus.pending
+
+
+class TestConcurrency:
+    """Regression test for a real race CI caught on Python 3.13 (not
+    locally, not on 3.14): one thread creating/reading an approval while
+    another thread reads/decides it concurrently, on the same
+    ApprovalStore connection, intermittently corrupted a row read
+    (sqlite3.InterfaceError, or a field read back as an empty string).
+    ApprovalStore now holds an internal lock around every operation;
+    this hammers it from many threads at once to make that race as
+    likely to reproduce as a non-flaky unit test reasonably can.
+    """
+
+    def test_concurrent_create_get_decide_does_not_corrupt_reads(
+        self, tmp_path: Path, principals: PrincipalDirectory
+    ) -> None:
+        import threading
+        import time
+
+        store = ApprovalStore(tmp_path / "concurrent.db")
+        broker = ApprovalBroker(store, principals)
+        errors: list[BaseException] = []
+        stop = threading.Event()
+
+        def create_loop() -> None:
+            while not stop.is_set():
+                try:
+                    broker.request(
+                        requester="agent_session",
+                        rule_id="r1",
+                        summary=_summary(),
+                        required_count=1,
+                        required_roles=["data_steward"],
+                    )
+                except BaseException as exc:  # noqa: BLE001 - record, don't swallow
+                    errors.append(exc)
+
+        def read_loop() -> None:
+            while not stop.is_set():
+                try:
+                    for approval in broker.list_pending():
+                        broker.get(approval.id)
+                except BaseException as exc:  # noqa: BLE001 - record, don't swallow
+                    errors.append(exc)
+
+        def decide_loop() -> None:
+            while not stop.is_set():
+                try:
+                    for approval in broker.list_pending():
+                        try:
+                            broker.decide(approval.id, "jane_steward", True, "stress test")
+                        except (ApprovalAlreadyResolvedError, DuplicateApproverError):
+                            pass  # expected: another thread got there first
+                except BaseException as exc:  # noqa: BLE001 - record, don't swallow
+                    errors.append(exc)
+
+        threads = [
+            threading.Thread(target=create_loop),
+            threading.Thread(target=read_loop),
+            threading.Thread(target=read_loop),
+            threading.Thread(target=decide_loop),
+            threading.Thread(target=decide_loop),
+        ]
+        for t in threads:
+            t.start()
+        time.sleep(1.5)
+        stop.set()
+        for t in threads:
+            t.join(timeout=5)
+
+        store.close()
+        assert errors == []
