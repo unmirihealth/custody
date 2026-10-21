@@ -113,6 +113,7 @@ See docs/integrations/claude-code.md for both, with exact config.
 | Approval broker | `custody/approvals/` | this README, docs/threat-model.md |
 | Approval notifier (CLI, UI, webhook) | `custody/approvals/notifier.py` | docs/policy-reference.md, `custody serve --help` |
 | Audit log | `custody/audit/` | docs/audit-log.md |
+| S3 Object Lock audit sink (optional, `pip install custody-mcp[s3]`) | `custody/audit/s3_sink.py` | docs/s3-object-lock-sink.md |
 | Evidence-pack export | `custody/evidence/` | docs/evidence-pack.md |
 | Sandbox executor | `custody/sandbox/` | docs/threat-model.md |
 | Egress allowlist proxy | `custody/sandbox/egress_proxy.py` | docs/egress-proxy.md, docs/threat-model.md T9 |

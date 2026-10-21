@@ -37,6 +37,9 @@ jobs:
       - name: Build the egress proxy image
         run: docker build -f docker/egress-proxy.Dockerfile -t custody-egress-proxy:latest .
 
+      - name: Pull the LocalStack image (used by the S3 Object Lock sink tests)
+        run: docker pull localstack/localstack:3.0
+
       - name: Lint (ruff)
         run: uv run ruff check .
 

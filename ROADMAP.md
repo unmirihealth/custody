@@ -15,8 +15,6 @@ every claim in the README stayed true on release day. Items move to
   isolation code would be worse than not shipping it. Revisit if this
   project ever gets a Linux CI runner or dev box with KVM. v0.1 uses
   standard Docker; see docs/threat-model.md T2.
-- S3 Object Lock audit sink (the sink interface is documented and
-  implemented locally in v0.1; the S3 implementation itself is not)
 - Kubernetes deployment
 - Approver mobile notifications
 
@@ -28,6 +26,12 @@ every claim in the README stayed true on release day. Items move to
 - **Evidence-pack export mapped to common control frameworks** --
   `custody evidence export`. See docs/evidence-pack.md and
   CHANGELOG.md [Unreleased].
+- **S3 Object Lock audit sink** -- `custody.audit.s3_sink
+  .S3ObjectLockSink`. Verified against real LocalStack for
+  read/write/list/ordering correctness; the retention guarantee itself
+  is explicitly NOT verified in this environment (LocalStack Community
+  does not enforce Object Lock), see docs/s3-object-lock-sink.md for
+  exactly what that means. CHANGELOG.md [Unreleased].
 - **A fully isolated egress allowlist proxy** --
   `custody.sandbox.egress_proxy`, `SandboxConfig.egress_allowlist`. See
   docs/egress-proxy.md, docs/threat-model.md T9, and CHANGELOG.md

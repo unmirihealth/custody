@@ -37,6 +37,9 @@ custody = "custody.cli.main:app"
 custody-claude-code-hook = "custody.hooks.claude_code:main"
 
 [project.optional-dependencies]
+s3 = [
+    "boto3>=1.35",
+]
 dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
@@ -45,6 +48,8 @@ dev = [
     "mypy>=1.13",
     "types-PyYAML>=6.0",
     "types-docker>=7.1",
+    "boto3>=1.35",
+    "boto3-stubs[s3]>=1.35",
 ]
 
 [build-system]
@@ -63,7 +68,9 @@ select = ["E", "F", "I", "UP", "B", "S"]
 # S101: assert is fine in tests. Excluded per-file below instead of globally.
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+# S101: assert is fine in tests. S106: LocalStack's documented dummy
+# credentials ("test"/"test"), never real secrets, see test_s3_sink.py.
+"tests/**" = ["S101", "S106"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -120,11 +120,17 @@ verify the chain, run `custody audit verify` separately for that.
 
 ## Shipping checkpoints to write-once storage
 
-v0.1 implements one `AuditSink`: `LocalFileSink`, two local JSONL
-files. `AuditSink` is a `Protocol` (`custody/audit/sinks.py`) with four
+v0.1 shipped one `AuditSink`: `LocalFileSink`, two local JSONL files.
+`AuditSink` is a `Protocol` (`custody/audit/sinks.py`) with four
 methods (`append_entry`, `append_checkpoint`, `read_entries`,
-`read_checkpoints`); implementing it against S3 with Object Lock (or
-any other write-once store) is the documented hook for a deployment
-that needs it. **Not implemented in this release** -- see
-ROADMAP.md -- Custody does not require AWS, or any particular cloud,
-to run.
+`read_checkpoints`); a second implementation,
+`custody.audit.s3_sink.S3ObjectLockSink`, fills in the write-once-store
+hook this section used to describe as undone. It requires the optional
+`s3` dependency group (`pip install custody-mcp[s3]`) and is never
+imported by `custody.audit`'s own `__init__`, so Custody still does
+not require AWS, or any particular cloud, to run unless you choose to
+use it. See docs/s3-object-lock-sink.md for setup, the exact
+`GOVERNANCE`/`COMPLIANCE` retention tradeoff, and -- importantly -- what
+is and is not actually verified against a local test environment
+(the write-once guarantee itself needs real AWS or LocalStack Pro to
+confirm, not something this project's own CI can check).

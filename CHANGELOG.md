@@ -45,6 +45,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   An empty allowlist still falls back to the previous unscoped
   behavior (documented, not silently removed). See
   docs/egress-proxy.md and docs/threat-model.md T9.
+- `custody.audit.s3_sink.S3ObjectLockSink`: a second `AuditSink`
+  implementation, filling in the write-once storage hook
+  docs/audit-log.md has documented since v0.1. Requires the optional
+  `s3` dependency group (`pip install custody-mcp[s3]`); never
+  imported by `custody.audit`'s own `__init__`, so Custody still does
+  not require AWS to run. Tested against a real LocalStack container
+  for read/write/list/ordering correctness; the retention guarantee
+  itself (an actual blocked delete) is explicitly NOT verified in this
+  environment, LocalStack's free Community edition accepts Object Lock
+  parameters but does not enforce them, a known gap documented in
+  docs/s3-object-lock-sink.md alongside what IS verified.
 
 ## [0.1.0] - 2026-10-21
 

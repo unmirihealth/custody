@@ -20,17 +20,19 @@ from custody.audit.models import AuditEntry, Checkpoint
 
 
 class CorruptAuditLogError(Exception):
-    """A line in the audit log could not be read back as an entry: not
-    valid UTF-8, not valid JSON, or not a valid AuditEntry. This is
-    itself a tamper signal (docs/threat-model.md T3), not an I/O error to
-    paper over. `AuditLog.verify()` catches this and reports it as a
-    broken link rather than letting it crash past verification.
+    """One unit of a sink (a line in `LocalFileSink`'s entries.jsonl, an
+    object key in `S3ObjectLockSink`) could not be read back as an
+    entry: not valid UTF-8, not valid JSON, or not a valid AuditEntry.
+    This is itself a tamper signal (docs/threat-model.md T3), not an
+    I/O error to paper over. `AuditLog.verify()` catches this and
+    reports it as a broken link rather than letting it crash past
+    verification.
     """
 
-    def __init__(self, line_index: int, detail: str) -> None:
+    def __init__(self, line_index: int | str, detail: str) -> None:
         self.line_index = line_index
         self.detail = detail
-        super().__init__(f"entries.jsonl line {line_index} is unreadable: {detail}")
+        super().__init__(f"{line_index} is unreadable: {detail}")
 
 
 class AuditSink(Protocol):
@@ -90,7 +92,7 @@ class LocalFileSink:
                     data = json.loads(text)
                     yield AuditEntry.model_validate(data)
                 except (UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
-                    raise CorruptAuditLogError(i, str(exc)) from exc
+                    raise CorruptAuditLogError(f"entries.jsonl line {i}", str(exc)) from exc
 
     def read_checkpoints(self) -> Iterator[Checkpoint]:
         if not self.checkpoints_path.exists():
